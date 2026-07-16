@@ -85,10 +85,11 @@ class RetentionSettings(BaseModel):
 
 
 class ServerSettings(BaseModel):
-    """API bind address."""
+    """API bind address and the station's local timezone."""
 
     host: str = "0.0.0.0"
     port: int = 8000
+    timezone: str = "Europe/London"
 
 
 class Settings(BaseSettings):

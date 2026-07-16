@@ -13,10 +13,12 @@ dependencies = [
     "watchdog>=5.0",
     "httpx>=0.27",
     "pyyaml>=6.0",
+    "websockets>=13",
 ]
 
 [project.scripts]
 skywatch-worker = "skywatch.pipeline.worker:main"
+skywatch-api = "skywatch.api.app:main"
 
 [project.optional-dependencies]
 asr = [

@@ -36,6 +36,8 @@ class ValidationResult:
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     suggested_centerfreq_mhz: float | None = None
+    """Centre frequency for the plan when it fits, or for the largest
+    fitting subset when it does not."""
     offenders: list[str] = field(default_factory=list)
     """Labels of frequencies that would have to be deactivated to fit."""
 
@@ -102,4 +104,9 @@ def validate_frequencies(freqs: Sequence[Frequency], mode: str) -> ValidationRes
         f"{len(keep)} channels (centre frequency {keep_center} MHz), or switch "
         f"capture mode to scan to cycle through all of them"
     )
-    return ValidationResult(ok=False, errors=[error], offenders=[f.label for f in offenders])
+    return ValidationResult(
+        ok=False,
+        errors=[error],
+        suggested_centerfreq_mhz=keep_center,
+        offenders=[f.label for f in offenders],
+    )

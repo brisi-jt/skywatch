@@ -43,7 +43,16 @@ class TestMultichannel:
     def test_span_just_over_usable_window_fails(self):
         result = validate_frequencies([freq("lo", 120.0), freq("hi", 122.5)], "multichannel")
         assert not result.ok
-        assert result.suggested_centerfreq_mhz is None
+
+    def test_failure_result_carries_surviving_window_centerfreq(self):
+        # On a window conflict the result still suggests a centre frequency —
+        # the one for the largest fitting subset — so callers can surface a
+        # concrete fix alongside the offender list.
+        freqs = GROUP_ONE + [freq("Tower", 123.805)]
+        result = validate_frequencies(freqs, "multichannel")
+        assert not result.ok
+        assert result.offenders == ["Tower"]
+        assert result.suggested_centerfreq_mhz == pytest.approx(119.5525)
 
     def test_no_fit_error_names_offenders_and_suggests_centerfreq(self):
         freqs = GROUP_ONE + [

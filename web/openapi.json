@@ -1,0 +1,2322 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "skywatch station",
+    "description": "The complete contract for a skywatch station: a receive-only SDR aviation\nmonitor that records VHF airband transmissions, transcribes them locally,\nflags the interesting ones, and attaches probable aircraft.\n\nReading the data:\n\n- `/status` \u2014 station health; `/frequencies` \u2014 the listening plan.\n- `/recordings` \u2014 the clip library; `/clips/interesting` \u2014 the good bits;\n  `/digest` \u2014 one day summarised for a \"today\" view.\n- `/runbook` and `/glossary` \u2014 station documents as Markdown.\n\nLive updates come from `WS /stream`. Every message is an envelope\n`{\"type\": <event>, \"payload\": <object>}` with three event types:\n`recording.new` (payload: a /recordings list item), `recording.updated`\n(same shape, sent when a clip's pipeline stage or verdicts change), and\n`status.changed` (payload: the /status shape, sent when station settings\nchange). The stream sends events only \u2014 anything a client sends is ignored.\n\nErrors are RFC 7807 problem details (`application/problem+json`) with a\nstable `code` field to switch on.\n\nThe API is unauthenticated by design: it is meant for a private LAN or\nTailscale network only, and must not be exposed to the public internet.\nTransmissions are received for personal monitoring; audio must not be\nrebroadcast.\n",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/status": {
+      "get": {
+        "tags": [
+          "status"
+        ],
+        "summary": "Station health at a glance",
+        "description": "Everything the station knows about its own health: capture state (source, mode, tuner centre frequency, dongle presence, the disk-guard pause flag), a three-step trace of the capture chain (database plan \u2192 rendered config file \u2192 running process) that pinpoints where a frequency change stalled, pipeline queue depths per stage, disk headroom, and today's spend against the external API budgets. `station_name` is null until the owner names the station \u2014 the cue for a first-run naming dialog.",
+        "operationId": "get_status_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/frequencies": {
+      "get": {
+        "tags": [
+          "frequencies"
+        ],
+        "summary": "List the frequency plan",
+        "description": "Every frequency the station knows about, active or not, ordered by MHz. Rows with `verified: false` carry placeholder frequencies that have not been checked against a current source and should be displayed with a caveat. Each item links to the action currently available on it (activate or deactivate) and to its recordings.",
+        "operationId": "list_frequencies_frequencies_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FrequencyListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/frequencies/{freq_id}/activate": {
+      "post": {
+        "tags": [
+          "frequencies"
+        ],
+        "summary": "Start recording a frequency",
+        "description": "Adds the frequency to the active plan, rewrites the capture configuration, and restarts capture (a restart drops a few seconds of audio \u2014 there is no hot retune). In multichannel mode every active frequency must fit one 2.56 MHz tuner window; when the new set does not fit, the response is a 409 problem detail whose `offenders` lists the frequencies to deactivate and whose `suggested_centerfreq_mhz` is the centre frequency for the largest set that does fit. Switching the station to scan mode is the alternative escape hatch, at the cost of missing concurrent transmissions. Activating an already-active frequency changes nothing.",
+        "operationId": "activate_frequency_frequencies__freq_id__activate_post",
+        "parameters": [
+          {
+            "name": "freq_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Freq Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FrequencyActionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown frequency.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The active set would not fit one tuner window.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/frequencies/{freq_id}/deactivate": {
+      "post": {
+        "tags": [
+          "frequencies"
+        ],
+        "summary": "Stop recording a frequency",
+        "description": "Removes the frequency from the active plan, rewrites the capture configuration, and restarts capture. Deactivating the last active frequency stops capture entirely (with a warning in the response) until something is activated again. Deactivating an already-inactive frequency changes nothing.",
+        "operationId": "deactivate_frequency_frequencies__freq_id__deactivate_post",
+        "parameters": [
+          {
+            "name": "freq_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Freq Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FrequencyActionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown frequency.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/recordings": {
+      "get": {
+        "tags": [
+          "recordings"
+        ],
+        "summary": "Browse the clip library",
+        "description": "Recorded transmissions, newest first, as summary cards: frequency, timing, latest transcript snippet, latest verdict, most plausible aircraft candidate, and feedback tallies. All filters combine. Date filters are inclusive and use the station's local day boundaries. `interesting` and `category` match each clip's latest verdict, so a reclassified clip follows its newest classification. `has_match` selects clips with (or without) aircraft candidates.",
+        "operationId": "list_recordings_recordings_get",
+        "parameters": [
+          {
+            "name": "from_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Earliest local day to include.",
+              "title": "From Date"
+            },
+            "description": "Earliest local day to include."
+          },
+          {
+            "name": "to_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Latest local day to include.",
+              "title": "To Date"
+            },
+            "description": "Latest local day to include."
+          },
+          {
+            "name": "freq_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only clips from this frequency.",
+              "title": "Freq Id"
+            },
+            "description": "Only clips from this frequency."
+          },
+          {
+            "name": "interesting",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "true for clips whose latest verdict is interesting; false for routine.",
+              "title": "Interesting"
+            },
+            "description": "true for clips whose latest verdict is interesting; false for routine."
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ClassificationCategory"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only clips whose latest verdict has this category.",
+              "title": "Category"
+            },
+            "description": "Only clips whose latest verdict has this category."
+          },
+          {
+            "name": "has_match",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Whether clips must have aircraft candidates.",
+              "title": "Has Match"
+            },
+            "description": "Whether clips must have aircraft candidates."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "description": "Clips per page.",
+              "default": 50,
+              "title": "Limit"
+            },
+            "description": "Clips per page."
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Clips to skip from the newest.",
+              "default": 0,
+              "title": "Offset"
+            },
+            "description": "Clips to skip from the newest."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordingListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/recordings/{recording_id}": {
+      "get": {
+        "tags": [
+          "recordings"
+        ],
+        "summary": "One clip with full provenance",
+        "description": "Everything the station knows about one clip: the latest transcript with engine provenance and confidence, the complete classification history (newest first \u2014 verdicts are appended, never overwritten), every ranked aircraft candidate, individual feedback entries, and any pipeline error the clip hit.",
+        "operationId": "get_recording_recordings__recording_id__get",
+        "parameters": [
+          {
+            "name": "recording_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Recording Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordingDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown recording.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/recordings/{recording_id}/audio": {
+      "get": {
+        "tags": [
+          "recordings"
+        ],
+        "summary": "Stream a clip's audio",
+        "description": "The clip as MP3 (8 kHz mono as captured). Supports HTTP Range requests, so seeking in an audio player works. Returns 410 once retention has pruned the audio of an old routine clip \u2014 the clip's metadata remains available.",
+        "operationId": "get_audio_recordings__recording_id__audio_get",
+        "parameters": [
+          {
+            "name": "recording_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Recording Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "audio/mpeg": {}
+            }
+          },
+          "206": {
+            "description": "Partial content for a Range request."
+          },
+          "404": {
+            "description": "Unknown recording or missing file.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Audio pruned by retention.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/recordings/{recording_id}/reclassify": {
+      "post": {
+        "tags": [
+          "recordings"
+        ],
+        "summary": "Queue a clip for reclassification",
+        "description": "Sends the clip back through the classifier. The pipeline worker picks it up on its next pass and appends a fresh verdict to the clip's history (nothing is overwritten). Returns 202 immediately; watch the stream or re-fetch the clip for the new verdict. Clips that have not been transcribed yet cannot be reclassified.",
+        "operationId": "reclassify_recording_recordings__recording_id__reclassify_post",
+        "parameters": [
+          {
+            "name": "recording_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Recording Id"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReclassifyResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown recording.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Clip has not been transcribed yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/recordings/{recording_id}/feedback": {
+      "post": {
+        "tags": [
+          "recordings"
+        ],
+        "summary": "Record a thumbs-up or thumbs-down",
+        "description": "Stores a listener verdict on whether the clip was worth hearing. Verdicts accumulate \u2014 they are individual votes, not a toggle \u2014 and feed the all-time greatest-hits list in the digest.",
+        "operationId": "create_feedback_recordings__recording_id__feedback_post",
+        "parameters": [
+          {
+            "name": "recording_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Recording Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeedbackCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedbackResource"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown recording.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/clips/interesting": {
+      "get": {
+        "tags": [
+          "recordings"
+        ],
+        "summary": "The clips worth hearing",
+        "description": "Clips whose latest verdict is interesting, newest first \u2014 the default library view. Equivalent to /recordings?interesting=true, kept as its own route because it is the page most clients open first.",
+        "operationId": "list_interesting_clips_clips_interesting_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "description": "Clips per page.",
+              "default": 50,
+              "title": "Limit"
+            },
+            "description": "Clips per page."
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Clips to skip from the newest.",
+              "default": 0,
+              "title": "Offset"
+            },
+            "description": "Clips to skip from the newest."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordingListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/digest": {
+      "get": {
+        "tags": [
+          "digest"
+        ],
+        "summary": "One day on the airwaves",
+        "description": "A summary of one station-local day: how many transmissions were recorded, how many were flagged interesting, the interesting clips themselves, and the all-time greatest hits (the clips with the most thumbs-up, regardless of day). Defaults to today; `previous_day` / `next_day` links page through history, and `next_day` is omitted for today. A day with zero recordings returns the same shape with zero counts and empty lists.",
+        "operationId": "get_digest_digest_get",
+        "parameters": [
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Local day to summarise (YYYY-MM-DD); today when omitted.",
+              "title": "Date"
+            },
+            "description": "Local day to summarise (YYYY-MM-DD); today when omitted."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DigestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/runbook": {
+      "get": {
+        "tags": [
+          "docs"
+        ],
+        "summary": "The station runbook",
+        "description": "Operating instructions for the station \u2014 start/stop, antenna placement, tuning, troubleshooting \u2014 as raw Markdown for the client to render.",
+        "operationId": "get_runbook_runbook_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Runbook not installed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/glossary": {
+      "get": {
+        "tags": [
+          "docs"
+        ],
+        "summary": "The aviation glossary",
+        "description": "Plain-English explanations of the aviation terms that appear in transcripts and classifications, as raw Markdown for the client to render.",
+        "operationId": "get_glossary_glossary_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Glossary not installed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/settings": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Read the station settings",
+        "description": "The owner-editable settings. `station_name` is null until the station has been named \u2014 the cue to offer a naming dialog on first run.",
+        "operationId": "get_settings_settings_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Update station settings",
+        "description": "Partial update: send only the keys to change. `station_name` is currently the only editable key; anything else is rejected with a 400 problem detail listing the allowed keys. A successful rename is announced on the event stream as `status.changed`, so other open dashboards update live.",
+        "operationId": "patch_settings_settings_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object",
+                "title": "Payload",
+                "description": "Setting keys to update with their new values.",
+                "examples": [
+                  {
+                    "station_name": "My Airband Station"
+                  }
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown setting key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid setting value.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "APIErrorCode": {
+        "type": "string",
+        "enum": [
+          "validation_error",
+          "not_found",
+          "frequency_not_found",
+          "recording_not_found",
+          "document_not_found",
+          "audio_deleted",
+          "audio_file_missing",
+          "window_conflict",
+          "unknown_setting_key",
+          "invalid_setting_value",
+          "recording_not_classifiable",
+          "method_not_allowed",
+          "internal_error"
+        ],
+        "title": "APIErrorCode",
+        "description": "Stable machine-readable error codes for problem responses."
+      },
+      "AircraftMatchResource": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "source": {
+            "$ref": "#/components/schemas/FlightDataSource"
+          },
+          "icao24": {
+            "type": "string",
+            "title": "Icao24"
+          },
+          "callsign": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Callsign"
+          },
+          "airline_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Airline Name"
+          },
+          "flight_number_guess": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flight Number Guess",
+            "description": "Marketed flight number inferred from the callsign; a guess by construction, so always phrase it as one."
+          },
+          "lat": {
+            "type": "number",
+            "title": "Lat"
+          },
+          "lon": {
+            "type": "number",
+            "title": "Lon"
+          },
+          "alt_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alt Ft"
+          },
+          "gs_kt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gs Kt"
+          },
+          "distance_km": {
+            "type": "number",
+            "title": "Distance Km"
+          },
+          "match_confidence": {
+            "type": "number",
+            "title": "Match Confidence",
+            "description": "Ranking confidence in [0, 1]."
+          },
+          "rank": {
+            "type": "integer",
+            "title": "Rank",
+            "description": "1 is the most plausible candidate."
+          },
+          "queried_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Queried At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "source",
+          "icao24",
+          "callsign",
+          "airline_name",
+          "flight_number_guess",
+          "lat",
+          "lon",
+          "alt_ft",
+          "gs_kt",
+          "distance_km",
+          "match_confidence",
+          "rank",
+          "queried_at"
+        ],
+        "title": "AircraftMatchResource",
+        "description": "A probable aircraft near the station when the clip was captured.\n\nCandidates are heuristic: they come from position data around the\nreceiver at capture time, not from decoding the transmission. Present\nthem as 'probably/possibly', never as fact."
+      },
+      "AsrEngine": {
+        "type": "string",
+        "enum": [
+          "faster_whisper",
+          "whisper_cpp"
+        ],
+        "title": "AsrEngine",
+        "description": "Speech-to-text engine that produced a transcript."
+      },
+      "BudgetInfo": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "calls_today": {
+            "type": "integer",
+            "title": "Calls Today"
+          },
+          "daily_cap": {
+            "type": "integer",
+            "title": "Daily Cap"
+          },
+          "remaining": {
+            "type": "integer",
+            "title": "Remaining"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "calls_today",
+          "daily_cap",
+          "remaining"
+        ],
+        "title": "BudgetInfo",
+        "description": "Today's consumption against one external API's daily budget."
+      },
+      "CaptureStatus": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "description": "live (real SDR dongle) or replay (fixture playback)."
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode",
+            "description": "multichannel or scan."
+          },
+          "running": {
+            "type": "boolean",
+            "title": "Running"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          },
+          "paused_for_disk": {
+            "type": "boolean",
+            "title": "Paused For Disk",
+            "description": "True while the disk-space guard has capture paused."
+          },
+          "dongle_present": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dongle Present",
+            "description": "Whether an RTL-SDR device is attached; null when not probed (replay)."
+          },
+          "centerfreq_mhz": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Centerfreq Mhz",
+            "description": "Tuner centre frequency for the active plan; null in scan mode."
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "mode",
+          "running",
+          "detail",
+          "paused_for_disk",
+          "dongle_present",
+          "centerfreq_mhz"
+        ],
+        "title": "CaptureStatus",
+        "description": "The capture chain as it is right now."
+      },
+      "CaptureTrace": {
+        "properties": {
+          "db_intent": {
+            "$ref": "#/components/schemas/TraceIntent"
+          },
+          "rendered_conf": {
+            "$ref": "#/components/schemas/TraceConf"
+          },
+          "process": {
+            "$ref": "#/components/schemas/TraceProcess"
+          }
+        },
+        "type": "object",
+        "required": [
+          "db_intent",
+          "rendered_conf",
+          "process"
+        ],
+        "title": "CaptureTrace",
+        "description": "The three-step capture chain: database intent, rendered config file,\nrunning process. Any mismatch between steps points at where a frequency\nchange stalled."
+      },
+      "ClassificationCategory": {
+        "type": "string",
+        "enum": [
+          "routine",
+          "emergency",
+          "urgency",
+          "go_around",
+          "medical",
+          "fuel",
+          "guard_activity",
+          "unusual",
+          "other"
+        ],
+        "title": "ClassificationCategory",
+        "description": "Why a clip is (or is not) interesting."
+      },
+      "ClassificationResource": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "is_interesting": {
+            "type": "boolean",
+            "title": "Is Interesting"
+          },
+          "category": {
+            "$ref": "#/components/schemas/ClassificationCategory"
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence",
+            "description": "Verdict confidence in [0, 1]."
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "description": "Plain-language explanation of the verdict."
+          },
+          "source": {
+            "$ref": "#/components/schemas/ClassificationSource"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model",
+            "description": "LLM model name when the source is llm."
+          },
+          "prefilter_flags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Prefilter Flags",
+            "description": "Which prefilter rules fired (e.g. keyword:mayday, guard_frequency)."
+          },
+          "status": {
+            "$ref": "#/components/schemas/ClassificationStatus",
+            "description": "final, or deferred when the daily LLM budget was exhausted and a fuller verdict will be backfilled after the quota resets."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "is_interesting",
+          "category",
+          "confidence",
+          "reason",
+          "source",
+          "model",
+          "prefilter_flags",
+          "status",
+          "created_at"
+        ],
+        "title": "ClassificationResource",
+        "description": "One routine/interesting verdict. History is append-only; the newest\nverdict is the one that counts."
+      },
+      "ClassificationSource": {
+        "type": "string",
+        "enum": [
+          "prefilter",
+          "llm"
+        ],
+        "title": "ClassificationSource",
+        "description": "Which layer produced a classification verdict."
+      },
+      "ClassificationStatus": {
+        "type": "string",
+        "enum": [
+          "final",
+          "deferred"
+        ],
+        "title": "ClassificationStatus",
+        "description": "Whether a verdict is settled or awaiting an LLM pass after quota reset."
+      },
+      "ConfState": {
+        "type": "string",
+        "enum": [
+          "match",
+          "stale",
+          "missing",
+          "not_applicable"
+        ],
+        "title": "ConfState",
+        "description": "How the rtl_airband config file on disk relates to the database plan."
+      },
+      "DigestResponse": {
+        "properties": {
+          "_links": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "type": "object",
+            "title": "Links",
+            "description": "HAL links: self plus related resources and the actions currently available on this resource."
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "total_count": {
+            "type": "integer",
+            "title": "Total Count",
+            "description": "Transmissions recorded during the day."
+          },
+          "interesting_count": {
+            "type": "integer",
+            "title": "Interesting Count"
+          },
+          "interesting": {
+            "items": {
+              "$ref": "#/components/schemas/RecordingSummary"
+            },
+            "type": "array",
+            "title": "Interesting",
+            "description": "The day's interesting clips, newest first."
+          },
+          "greatest_hits": {
+            "items": {
+              "$ref": "#/components/schemas/RecordingSummary"
+            },
+            "type": "array",
+            "title": "Greatest Hits",
+            "description": "All-time favourites: the clips with the most thumbs-up."
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "total_count",
+          "interesting_count",
+          "interesting",
+          "greatest_hits"
+        ],
+        "title": "DigestResponse",
+        "description": "One local day on the airwaves, summarised."
+      },
+      "DiskInfo": {
+        "properties": {
+          "free_gb": {
+            "type": "number",
+            "title": "Free Gb"
+          },
+          "total_gb": {
+            "type": "number",
+            "title": "Total Gb"
+          },
+          "min_free_gb": {
+            "type": "number",
+            "title": "Min Free Gb",
+            "description": "Floor below which capture is paused."
+          },
+          "low": {
+            "type": "boolean",
+            "title": "Low"
+          }
+        },
+        "type": "object",
+        "required": [
+          "free_gb",
+          "total_gb",
+          "min_free_gb",
+          "low"
+        ],
+        "title": "DiskInfo"
+      },
+      "DocumentResponse": {
+        "properties": {
+          "_links": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "type": "object",
+            "title": "Links",
+            "description": "HAL links: self plus related resources and the actions currently available on this resource."
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "markdown": {
+            "type": "string",
+            "title": "Markdown"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "markdown"
+        ],
+        "title": "DocumentResponse",
+        "description": "A station document as raw Markdown for the client to render."
+      },
+      "FeedbackCounts": {
+        "properties": {
+          "up": {
+            "type": "integer",
+            "title": "Up"
+          },
+          "down": {
+            "type": "integer",
+            "title": "Down"
+          }
+        },
+        "type": "object",
+        "required": [
+          "up",
+          "down"
+        ],
+        "title": "FeedbackCounts",
+        "description": "Thumbs-up / thumbs-down tallies for a clip."
+      },
+      "FeedbackCreate": {
+        "properties": {
+          "verdict": {
+            "$ref": "#/components/schemas/FeedbackVerdict"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "verdict"
+        ],
+        "title": "FeedbackCreate",
+        "description": "Request body for recording a listener verdict."
+      },
+      "FeedbackResource": {
+        "properties": {
+          "_links": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "type": "object",
+            "title": "Links",
+            "description": "HAL links: self plus related resources and the actions currently available on this resource."
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "recording_id": {
+            "type": "integer",
+            "title": "Recording Id"
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/FeedbackVerdict"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "recording_id",
+          "verdict",
+          "note",
+          "created_at"
+        ],
+        "title": "FeedbackResource",
+        "description": "One listener verdict on a clip."
+      },
+      "FeedbackVerdict": {
+        "type": "string",
+        "enum": [
+          "up",
+          "down"
+        ],
+        "title": "FeedbackVerdict",
+        "description": "Listener thumbs-up / thumbs-down on a clip."
+      },
+      "FlightDataSource": {
+        "type": "string",
+        "enum": [
+          "opensky"
+        ],
+        "title": "FlightDataSource",
+        "description": "Where an aircraft match came from."
+      },
+      "FrequencyActionResponse": {
+        "properties": {
+          "_links": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "type": "object",
+            "title": "Links",
+            "description": "HAL links: self plus related resources and the actions currently available on this resource."
+          },
+          "frequency": {
+            "$ref": "#/components/schemas/FrequencyResource"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings",
+            "description": "Non-fatal notes about the new plan, e.g. the scan-mode concurrency trade-off or a capture restart that could not complete."
+          },
+          "capture_restarted": {
+            "type": "boolean",
+            "title": "Capture Restarted",
+            "description": "Whether the capture process was restarted onto the new plan."
+          }
+        },
+        "type": "object",
+        "required": [
+          "frequency",
+          "warnings",
+          "capture_restarted"
+        ],
+        "title": "FrequencyActionResponse",
+        "description": "Result of activating or deactivating a frequency."
+      },
+      "FrequencyCategory": {
+        "type": "string",
+        "enum": [
+          "guard",
+          "tower",
+          "ground",
+          "approach",
+          "radar",
+          "atis",
+          "area_control",
+          "airfield"
+        ],
+        "title": "FrequencyCategory",
+        "description": "What kind of aviation service a frequency carries."
+      },
+      "FrequencyListResponse": {
+        "properties": {
+          "_links": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "type": "object",
+            "title": "Links",
+            "description": "HAL links: self plus related resources and the actions currently available on this resource."
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/FrequencyResource"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "FrequencyListResponse"
+      },
+      "FrequencyMode": {
+        "type": "string",
+        "enum": [
+          "am"
+        ],
+        "title": "FrequencyMode",
+        "description": "Demodulation mode for a monitored frequency."
+      },
+      "FrequencyRef": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "mhz": {
+            "type": "number",
+            "title": "Mhz"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "mhz"
+        ],
+        "title": "FrequencyRef",
+        "description": "Just enough about a frequency to label a clip."
+      },
+      "FrequencyResource": {
+        "properties": {
+          "_links": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "type": "object",
+            "title": "Links",
+            "description": "HAL links: self plus related resources and the actions currently available on this resource."
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "mhz": {
+            "type": "number",
+            "title": "Mhz"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/FrequencyMode"
+          },
+          "facility": {
+            "type": "string",
+            "title": "Facility"
+          },
+          "category": {
+            "$ref": "#/components/schemas/FrequencyCategory"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active",
+            "description": "Whether the station currently records this frequency."
+          },
+          "tuner_group": {
+            "type": "integer",
+            "title": "Tuner Group"
+          },
+          "verified": {
+            "type": "boolean",
+            "title": "Verified",
+            "description": "False until the frequency has been checked against a current official or enthusiast source; unverified rows deserve a prominent caveat in any UI."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "mhz",
+          "mode",
+          "facility",
+          "category",
+          "description",
+          "is_active",
+          "tuner_group",
+          "verified"
+        ],
+        "title": "FrequencyResource",
+        "description": "One entry in the station's frequency plan."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "Link": {
+        "properties": {
+          "href": {
+            "type": "string",
+            "title": "Href"
+          }
+        },
+        "type": "object",
+        "required": [
+          "href"
+        ],
+        "title": "Link",
+        "description": "One HAL link: a relative URL on this API."
+      },
+      "ProblemDetail": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "default": "about:blank"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "status": {
+            "type": "integer",
+            "title": "Status"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          },
+          "code": {
+            "$ref": "#/components/schemas/APIErrorCode"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "title",
+          "status",
+          "detail",
+          "code"
+        ],
+        "title": "ProblemDetail",
+        "description": "RFC 7807 problem details; the body of every error response."
+      },
+      "ReclassifyResponse": {
+        "properties": {
+          "_links": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "type": "object",
+            "title": "Links",
+            "description": "HAL links: self plus related resources and the actions currently available on this resource."
+          },
+          "recording_id": {
+            "type": "integer",
+            "title": "Recording Id"
+          },
+          "stage": {
+            "$ref": "#/components/schemas/RecordingStage"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "recording_id",
+          "stage",
+          "detail"
+        ],
+        "title": "ReclassifyResponse",
+        "description": "Acknowledgement that a clip was queued for reclassification."
+      },
+      "RecordingDetail": {
+        "properties": {
+          "_links": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "type": "object",
+            "title": "Links",
+            "description": "HAL links: self plus related resources and the actions currently available on this resource."
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "frequency": {
+            "$ref": "#/components/schemas/FrequencyRef"
+          },
+          "started_at_utc": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Started At Utc"
+          },
+          "ended_at_utc": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Ended At Utc"
+          },
+          "duration_s": {
+            "type": "number",
+            "title": "Duration S"
+          },
+          "stage": {
+            "$ref": "#/components/schemas/RecordingStage"
+          },
+          "audio_available": {
+            "type": "boolean",
+            "title": "Audio Available",
+            "description": "False once retention has pruned the audio; the row itself is kept."
+          },
+          "transcript_snippet": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transcript Snippet",
+            "description": "Opening of the latest transcript, or null while transcription is pending."
+          },
+          "classification": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClassificationResource"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Latest verdict, or null while classification is pending."
+          },
+          "top_match": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AircraftMatchResource"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Most plausible aircraft candidate, or null when none was found."
+          },
+          "feedback": {
+            "$ref": "#/components/schemas/FeedbackCounts"
+          },
+          "sample_rate": {
+            "type": "integer",
+            "title": "Sample Rate"
+          },
+          "file_path": {
+            "type": "string",
+            "title": "File Path",
+            "description": "Audio location relative to the station's data root."
+          },
+          "stage_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage Error",
+            "description": "Most recent pipeline failure for this clip, if any stage struggled."
+          },
+          "audio_deleted_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audio Deleted At"
+          },
+          "transcript": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TranscriptResource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "classifications": {
+            "items": {
+              "$ref": "#/components/schemas/ClassificationResource"
+            },
+            "type": "array",
+            "title": "Classifications",
+            "description": "Full verdict history, newest first."
+          },
+          "matches": {
+            "items": {
+              "$ref": "#/components/schemas/AircraftMatchResource"
+            },
+            "type": "array",
+            "title": "Matches",
+            "description": "All candidates, best first."
+          },
+          "feedback_entries": {
+            "items": {
+              "$ref": "#/components/schemas/FeedbackResource"
+            },
+            "type": "array",
+            "title": "Feedback Entries"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "frequency",
+          "started_at_utc",
+          "ended_at_utc",
+          "duration_s",
+          "stage",
+          "audio_available",
+          "transcript_snippet",
+          "classification",
+          "top_match",
+          "feedback",
+          "sample_rate",
+          "file_path",
+          "stage_error",
+          "audio_deleted_at",
+          "transcript",
+          "classifications",
+          "matches",
+          "feedback_entries"
+        ],
+        "title": "RecordingDetail",
+        "description": "A clip with its complete provenance."
+      },
+      "RecordingListResponse": {
+        "properties": {
+          "_links": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "type": "object",
+            "title": "Links",
+            "description": "HAL links: self plus related resources and the actions currently available on this resource."
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RecordingSummary"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "description": "Matching clips across all pages."
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "RecordingListResponse"
+      },
+      "RecordingStage": {
+        "type": "string",
+        "enum": [
+          "captured",
+          "enriching",
+          "transcribing",
+          "transcribed",
+          "classifying",
+          "classified",
+          "failed_enrich",
+          "failed_transcribe",
+          "failed_classify"
+        ],
+        "title": "RecordingStage",
+        "description": "Lifecycle position of a captured clip in the processing pipeline.\n\nEnrichment failures are recorded but never block transcription or\nclassification; the failed_* stages mark where a clip needs attention."
+      },
+      "RecordingSummary": {
+        "properties": {
+          "_links": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "type": "object",
+            "title": "Links",
+            "description": "HAL links: self plus related resources and the actions currently available on this resource."
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "frequency": {
+            "$ref": "#/components/schemas/FrequencyRef"
+          },
+          "started_at_utc": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Started At Utc"
+          },
+          "ended_at_utc": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Ended At Utc"
+          },
+          "duration_s": {
+            "type": "number",
+            "title": "Duration S"
+          },
+          "stage": {
+            "$ref": "#/components/schemas/RecordingStage"
+          },
+          "audio_available": {
+            "type": "boolean",
+            "title": "Audio Available",
+            "description": "False once retention has pruned the audio; the row itself is kept."
+          },
+          "transcript_snippet": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transcript Snippet",
+            "description": "Opening of the latest transcript, or null while transcription is pending."
+          },
+          "classification": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClassificationResource"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Latest verdict, or null while classification is pending."
+          },
+          "top_match": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AircraftMatchResource"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Most plausible aircraft candidate, or null when none was found."
+          },
+          "feedback": {
+            "$ref": "#/components/schemas/FeedbackCounts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "frequency",
+          "started_at_utc",
+          "ended_at_utc",
+          "duration_s",
+          "stage",
+          "audio_available",
+          "transcript_snippet",
+          "classification",
+          "top_match",
+          "feedback"
+        ],
+        "title": "RecordingSummary",
+        "description": "A clip as it appears in lists and cards."
+      },
+      "SettingsResponse": {
+        "properties": {
+          "_links": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "type": "object",
+            "title": "Links",
+            "description": "HAL links: self plus related resources and the actions currently available on this resource."
+          },
+          "station_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Station Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "station_name"
+        ],
+        "title": "SettingsResponse",
+        "description": "The station's owner-editable settings."
+      },
+      "StatusBudgets": {
+        "properties": {
+          "llm": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BudgetInfo"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Classifier budget; null when classification runs prefilter-only."
+          },
+          "opensky": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BudgetInfo"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Flight-data credit budget; null when enrichment is disabled."
+          }
+        },
+        "type": "object",
+        "required": [
+          "llm",
+          "opensky"
+        ],
+        "title": "StatusBudgets"
+      },
+      "StatusResponse": {
+        "properties": {
+          "_links": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "type": "object",
+            "title": "Links",
+            "description": "HAL links: self plus related resources and the actions currently available on this resource."
+          },
+          "station_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Station Name",
+            "description": "The name the owner gave the station, or null when it has never been named \u2014 the signal to offer a first-run naming dialog."
+          },
+          "capture": {
+            "$ref": "#/components/schemas/CaptureStatus"
+          },
+          "trace": {
+            "$ref": "#/components/schemas/CaptureTrace"
+          },
+          "queues": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Queues",
+            "description": "Clips per pipeline stage. The failed_* stages are the needs-attention surface."
+          },
+          "disk": {
+            "$ref": "#/components/schemas/DiskInfo"
+          },
+          "budgets": {
+            "$ref": "#/components/schemas/StatusBudgets"
+          }
+        },
+        "type": "object",
+        "required": [
+          "station_name",
+          "capture",
+          "trace",
+          "queues",
+          "disk",
+          "budgets"
+        ],
+        "title": "StatusResponse",
+        "description": "Everything the station knows about its own health."
+      },
+      "TraceChannel": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "mhz": {
+            "type": "number",
+            "title": "Mhz"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "mhz"
+        ],
+        "title": "TraceChannel"
+      },
+      "TraceConf": {
+        "properties": {
+          "state": {
+            "$ref": "#/components/schemas/ConfState"
+          },
+          "path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Path"
+          }
+        },
+        "type": "object",
+        "required": [
+          "state",
+          "path"
+        ],
+        "title": "TraceConf",
+        "description": "Whether the rendered config file reflects the database plan."
+      },
+      "TraceIntent": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "title": "Mode"
+          },
+          "channels": {
+            "items": {
+              "$ref": "#/components/schemas/TraceChannel"
+            },
+            "type": "array",
+            "title": "Channels"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mode",
+          "channels"
+        ],
+        "title": "TraceIntent",
+        "description": "What the database says should be captured."
+      },
+      "TraceProcess": {
+        "properties": {
+          "running": {
+            "type": "boolean",
+            "title": "Running"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "running",
+          "detail"
+        ],
+        "title": "TraceProcess",
+        "description": "Whether the capture process is actually running."
+      },
+      "TranscriptResource": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "engine": {
+            "$ref": "#/components/schemas/AsrEngine"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "avg_logprob": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Logprob",
+            "description": "Mean log-probability the recogniser assigned to its own output; closer to 0 is more confident. Values below about -1 deserve a 'rough transcript' caveat. Null when the engine does not report it."
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "engine",
+          "model",
+          "text",
+          "avg_logprob",
+          "language",
+          "created_at"
+        ],
+        "title": "TranscriptResource",
+        "description": "Speech-to-text output with engine provenance."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}
