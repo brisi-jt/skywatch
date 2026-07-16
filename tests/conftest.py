@@ -205,6 +205,7 @@ def station(engine, tmp_path, monkeypatch):
         engine=engine,
         capture=capture,
         content_dir=content_dir,
+        static_dir=tmp_path / "no-static",
         ws_poll_interval=0.05,
     )
     return SimpleNamespace(

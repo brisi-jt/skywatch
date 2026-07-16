@@ -97,6 +97,7 @@ class TestAppPlumbing:
         static_dir = tmp_path / "out"
         static_dir.mkdir()
         (static_dir / "index.html").write_text("<html><body>dashboard</body></html>")
+        (static_dir / "404.html").write_text("<html><body>lost</body></html>")
         settings = Settings(data_root=tmp_path / "data", _env_file=None)
         app = create_app(settings, engine=engine, static_dir=static_dir)
 
@@ -106,3 +107,9 @@ class TestAppPlumbing:
             assert "dashboard" in response.text
             # API routes still win over the static mount
             assert static_client.get("/status").status_code == 200
+            # Unknown paths fall through to the dashboard's own 404 page,
+            # not a JSON problem — browsers are the audience once the
+            # dashboard is mounted
+            lost = static_client.get("/nope")
+            assert lost.status_code == 404
+            assert "lost" in lost.text
