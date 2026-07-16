@@ -1,0 +1,54 @@
+# Station configuration. Copy to config/config.yaml and adjust for your site.
+# Secrets (API keys, OAuth credentials) do not belong here — see config/.env.example.
+
+receiver:
+  postcode: "SW1A 1AA"
+  # Geocoded from the postcode during station setup; leave null until then.
+  lat: null
+  lon: null
+
+capture:
+  # replay feeds fixture audio through the pipeline (no dongle needed);
+  # live runs rtl_airband against a connected RTL-SDR.
+  source: replay
+  # multichannel records several frequencies inside one ~2.56 MHz window at once;
+  # scan hops across arbitrary frequencies but misses concurrent traffic.
+  mode: multichannel
+  device_index: 0
+  # RTL-SDR tuner gain in dB. Auto-gain is not available; tune manually per site.
+  gain: 32.0
+  squelch_snr_threshold: 12
+  sample_rate_msps: 2.56
+  output_dir: ./data/recordings
+
+asr:
+  # faster_whisper is the default engine; whisper_cpp is the fallback for
+  # machines where the ctranslate2 wheel is unavailable.
+  engine: faster_whisper
+  model: base.en
+  compute_type: int8
+
+llm:
+  # Classification provider chain; none = prefilter-only classification.
+  provider: gemini
+  model: gemini-2.5-flash-lite
+  # Stay under the provider's free-tier daily request limit.
+  daily_call_cap: 900
+  fallback: [groq, none]
+
+enrichment:
+  # Flight-data lookups for probable aircraft; none disables enrichment.
+  provider: opensky
+  radius_km: 40
+  # Aircraft-state queries within the same bucket share one cached response.
+  bucket_seconds: 30
+  daily_credit_cap: 3000
+
+retention:
+  # Audio for routine clips is deleted after this many days; interesting
+  # clips and all database rows are kept indefinitely.
+  routine_audio_days: 14
+
+server:
+  host: 0.0.0.0
+  port: 8000

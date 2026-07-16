@@ -1,0 +1,29 @@
+# Environment / secrets
+.env
+
+# Runtime data (recordings, database, logs)
+data/
+*.db
+*.db-wal
+*.db-shm
+
+# Fetched fixture tier (licensed samples pulled by script; only synthetic
+# fixtures are committed)
+fixtures/fetched/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+dist/
+*.egg-info/
+
+# Dashboard
+web/node_modules/
+web/.next/
+web/out/
+
+# macOS
+.DS_Store
