@@ -52,6 +52,8 @@ class ASRSettings(BaseModel):
     engine: Literal["faster_whisper", "whisper_cpp"] = "faster_whisper"
     model: str = "base.en"
     compute_type: str = "int8"
+    whisper_cpp_binary: Path = Path("whisper-cli")
+    whisper_cpp_model: Path | None = None
 
 
 class LLMSettings(BaseModel):
@@ -61,6 +63,9 @@ class LLMSettings(BaseModel):
     model: str = "gemini-2.5-flash-lite"
     daily_call_cap: int = 900
     fallback: list[Literal["gemini", "groq", "ollama", "none"]] = ["groq", "none"]
+    groq_model: str = "llama-3.3-70b-versatile"
+    ollama_url: str = "http://localhost:11434"
+    ollama_model: str = "llama3.2"
 
 
 class EnrichmentSettings(BaseModel):
@@ -73,9 +78,10 @@ class EnrichmentSettings(BaseModel):
 
 
 class RetentionSettings(BaseModel):
-    """How long routine audio is kept before pruning."""
+    """How long routine audio is kept before pruning, and the disk floor."""
 
     routine_audio_days: int = 14
+    min_free_disk_gb: float = 2.0
 
 
 class ServerSettings(BaseModel):

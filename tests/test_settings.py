@@ -13,8 +13,9 @@ def test_example_config_loads_with_documented_values(monkeypatch):
     assert settings.data_root == Path("data")
 
     assert settings.receiver.postcode == "SW1A 1AA"
-    assert settings.receiver.lat is None
-    assert settings.receiver.lon is None
+    # Postcode centroid for SW1A 1AA from postcodes.io (London Stansted).
+    assert settings.receiver.lat == 51.5
+    assert settings.receiver.lon == -0.1
 
     assert settings.capture.source == "replay"
     assert settings.capture.mode == "multichannel"
@@ -27,6 +28,8 @@ def test_example_config_loads_with_documented_values(monkeypatch):
     assert settings.asr.engine == "faster_whisper"
     assert settings.asr.model == "base.en"
     assert settings.asr.compute_type == "int8"
+    assert settings.asr.whisper_cpp_binary == Path("whisper-cli")
+    assert settings.asr.whisper_cpp_model is None
 
     assert settings.llm.provider == "gemini"
     assert settings.llm.model == "gemini-2.5-flash-lite"
@@ -39,6 +42,7 @@ def test_example_config_loads_with_documented_values(monkeypatch):
     assert settings.enrichment.daily_credit_cap == 3000
 
     assert settings.retention.routine_audio_days == 14
+    assert settings.retention.min_free_disk_gb == 2.0
 
     assert settings.server.host == "0.0.0.0"
     assert settings.server.port == 8000

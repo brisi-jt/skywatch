@@ -6,9 +6,10 @@ data_root: ./data
 
 receiver:
   postcode: "SW1A 1AA"
-  # Geocoded from the postcode during station setup; leave null until then.
-  lat: null
-  lon: null
+  # Postcode centroid from postcodes.io (London Stansted); regenerate for a new
+  # site with: uv run python scripts/geocode.py "<postcode>"
+  lat: 51.5
+  lon: -0.1
 
 capture:
   # replay feeds fixture audio through the pipeline (no dongle needed);
@@ -30,6 +31,10 @@ asr:
   engine: faster_whisper
   model: base.en
   compute_type: int8
+  # Only used when engine is whisper_cpp: the whisper-cli binary and a ggml
+  # model file (e.g. ggml-base.en.bin).
+  whisper_cpp_binary: whisper-cli
+  whisper_cpp_model: null
 
 llm:
   # Classification provider chain; none = prefilter-only classification.
@@ -38,6 +43,10 @@ llm:
   # Stay under the provider's free-tier daily request limit.
   daily_call_cap: 900
   fallback: [groq, none]
+  # Models for the non-primary providers when they appear in the chain.
+  groq_model: llama-3.3-70b-versatile
+  ollama_url: http://localhost:11434
+  ollama_model: llama3.2
 
 enrichment:
   # Flight-data lookups for probable aircraft; none disables enrichment.
@@ -51,6 +60,9 @@ retention:
   # Audio for routine clips is deleted after this many days; interesting
   # clips and all database rows are kept indefinitely.
   routine_audio_days: 14
+  # Capture pauses when free disk falls below this floor and resumes once
+  # pruning (or you) frees space.
+  min_free_disk_gb: 2.0
 
 server:
   host: 0.0.0.0

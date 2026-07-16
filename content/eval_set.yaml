@@ -1,0 +1,43 @@
+# Labelled clips for classifier evaluation (pytest -m eval).
+#
+# Each entry names a fixture clip, the frequency category it would arrive
+# on, and the verdict a correct classifier should reach. Run after any
+# prompt or model change:
+#
+#     uv run pytest -m eval -s
+#
+# Add entries as real captured clips get hand-labelled (files under
+# fixtures/fetched/ work too — they stay out of git but the labels live here).
+
+clips:
+  - file: fixtures/mayday.mp3
+    frequency_label: Stansted Tower
+    frequency_category: tower
+    duration_s: 9.9
+    expected_interesting: true
+    expected_category: emergency
+    notes: synthetic mayday call (Speedbird 472, engine failure)
+
+  - file: fixtures/routine_clearance.mp3
+    frequency_label: Stansted Tower
+    frequency_category: tower
+    duration_s: 6.6
+    expected_interesting: false
+    expected_category: routine
+    notes: synthetic landing clearance (Ryanair 815B)
+
+  - file: fixtures/guard_121500.mp3
+    frequency_label: Guard 121.500
+    frequency_category: guard
+    duration_s: 7.4
+    expected_interesting: true
+    expected_category: guard_activity
+    notes: synthetic guard-frequency call; interesting because of the frequency
+
+  - file: fixtures/blip.mp3
+    frequency_label: Stansted Tower
+    frequency_category: tower
+    duration_s: 1.0
+    expected_interesting: false
+    expected_category: routine
+    notes: sub-1.5s squelch blip; must be classified by prefilters alone
