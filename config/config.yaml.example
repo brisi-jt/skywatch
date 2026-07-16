@@ -18,6 +18,10 @@ capture:
   # multichannel records several frequencies inside one ~2.56 MHz window at once;
   # scan hops across arbitrary frequencies but misses concurrent traffic.
   mode: multichannel
+  # How live capture controls rtl_airband: subprocess spawns it directly
+  # (development); launchctl kicks the com.skywatch.rtl-airband launchd
+  # service installed by scripts/bootstrap.sh (deployed stations).
+  supervisor: subprocess
   device_index: 0
   # RTL-SDR tuner gain in dB. Auto-gain is not available; tune manually per site.
   gain: 32.0

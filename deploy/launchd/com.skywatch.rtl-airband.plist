@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.skywatch.rtl-airband</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>__SKYWATCH_ROOT__/bin/rtl_airband</string>
+		<string>-F</string>
+		<string>-c</string>
+		<string>__SKYWATCH_ROOT__/data/rtl_airband.conf</string>
+	</array>
+	<key>WorkingDirectory</key>
+	<string>__SKYWATCH_ROOT__</string>
+	<key>RunAtLoad</key>
+	<true/>
+	<!-- Run only while a rendered config exists: the station writes
+	     data/rtl_airband.conf when live capture starts, so on a box still in
+	     replay mode this service stays quietly down instead of crash-looping. -->
+	<key>KeepAlive</key>
+	<dict>
+		<key>PathState</key>
+		<dict>
+			<key>__SKYWATCH_ROOT__/data/rtl_airband.conf</key>
+			<true/>
+		</dict>
+	</dict>
+	<key>ThrottleInterval</key>
+	<integer>10</integer>
+	<key>StandardOutPath</key>
+	<string>__SKYWATCH_ROOT__/data/logs/rtl-airband.log</string>
+	<key>StandardErrorPath</key>
+	<string>__SKYWATCH_ROOT__/data/logs/rtl-airband.err.log</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>__HOMEBREW_PREFIX__/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+	</dict>
+</dict>
+</plist>

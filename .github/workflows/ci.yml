@@ -20,4 +20,9 @@ jobs:
           enable-cache: true
       - run: uv sync --all-extras
       - run: make lint
+      - name: lint ops surface (shellcheck + plutil are macOS-leg checks)
+        if: runner.os == 'macOS'
+        run: |
+          command -v shellcheck >/dev/null || brew install shellcheck
+          make lint-ops
       - run: make test

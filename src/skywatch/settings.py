@@ -39,6 +39,10 @@ class CaptureSettings(BaseModel):
 
     source: Literal["live", "replay"] = "replay"
     mode: Literal["multichannel", "scan"] = "multichannel"
+    # How live capture controls rtl_airband: as its own child process, or by
+    # kicking the com.skywatch.rtl-airband launchd service (the deployed
+    # topology, where launchd owns the process).
+    supervisor: Literal["subprocess", "launchctl"] = "subprocess"
     device_index: int = 0
     gain: float = 32.0
     squelch_snr_threshold: float = 12

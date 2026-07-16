@@ -11,6 +11,10 @@ data/
 # fixtures are committed)
 fixtures/fetched/
 
+# Ops builds (bootstrap.sh clones and builds into these)
+build/
+bin/
+
 # Python
 .venv/
 __pycache__/

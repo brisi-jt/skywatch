@@ -16,6 +16,7 @@ startup and every stage is idempotent on re-run.
 """
 
 import logging
+import os
 import threading
 import time
 from datetime import UTC, datetime
@@ -613,6 +614,8 @@ def build_worker(settings: Settings, engine=None) -> PipelineWorker:
             settings.capture,
             conf_path=data_root / "rtl_airband.conf",
             recordings_dir=recordings_dir,
+            supervisor=settings.capture.supervisor,
+            launchd_domain=f"gui/{os.getuid()}",
         )
 
     return PipelineWorker(

@@ -8,6 +8,7 @@ and the controller is a no-op.
 """
 
 import logging
+import os
 from pathlib import Path
 
 from sqlalchemy import Engine
@@ -41,6 +42,8 @@ class CaptureController:
                 settings.capture,
                 conf_path=self.conf_path,
                 recordings_dir=recordings_dir,
+                supervisor=settings.capture.supervisor,
+                launchd_domain=f"gui/{os.getuid()}",
             )
         self.source = source
 
