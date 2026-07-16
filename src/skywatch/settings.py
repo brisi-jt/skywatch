@@ -92,6 +92,8 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    data_root: Path = Path("data")
+
     receiver: ReceiverSettings = ReceiverSettings()
     capture: CaptureSettings = CaptureSettings()
     asr: ASRSettings = ASRSettings()

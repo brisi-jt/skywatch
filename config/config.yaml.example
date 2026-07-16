@@ -1,6 +1,9 @@
 # Station configuration. Copy to config/config.yaml and adjust for your site.
 # Secrets (API keys, OAuth credentials) do not belong here — see config/.env.example.
 
+# Root directory for station data: the SQLite database, recordings, and logs.
+data_root: ./data
+
 receiver:
   postcode: "SW1A 1AA"
   # Geocoded from the postcode during station setup; leave null until then.

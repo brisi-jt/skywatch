@@ -10,6 +10,8 @@ def test_example_config_loads_with_documented_values(monkeypatch):
     monkeypatch.setenv("SKYWATCH_CONFIG", str(EXAMPLE_CONFIG))
     settings = Settings()
 
+    assert settings.data_root == Path("data")
+
     assert settings.receiver.postcode == "SW1A 1AA"
     assert settings.receiver.lat is None
     assert settings.receiver.lon is None

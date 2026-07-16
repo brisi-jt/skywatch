@@ -1,0 +1,114 @@
+# Default frequency plan for the London Stansted (SW1A) station, seeded into the
+# frequencies table on first run.
+#
+# Every mhz value with `verified: false` is a plausible figure taken from
+# public enthusiast listings and must be checked against a current official
+# source before relying on it; the dashboard shows a VERIFY badge until an
+# operator confirms the value and sets `verified: true`. Only the
+# international guard frequency ships verified.
+#
+# tuner_group buckets frequencies that fit together inside one ~2.56 MHz
+# receiver window (multichannel capture records one group at a time).
+# is_active is the operator's switch: the seeder applies it on first insert
+# only and never overwrites it afterwards.
+
+frequencies:
+  - label: "Guard 121.500"
+    mhz: 121.5
+    mode: am
+    facility: "International aeronautical emergency"
+    category: guard
+    description: "VHF distress and emergency frequency, monitored worldwide."
+    is_active: true
+    tuner_group: 2
+    verified: true
+
+  - label: "Stansted Tower"
+    mhz: 123.805
+    mode: am
+    facility: "London Stansted"
+    category: tower
+    description: "Aerodrome control: take-off and landing clearances."
+    is_active: false
+    tuner_group: 2
+    verified: false
+
+  - label: "Stansted Ground"
+    mhz: 121.73
+    mode: am
+    facility: "London Stansted"
+    category: ground
+    description: "Ground movement control: taxi and pushback."
+    is_active: false
+    tuner_group: 2
+    verified: false
+
+  - label: "Stansted Approach (Essex Radar)"
+    mhz: 120.625
+    mode: am
+    facility: "London Stansted"
+    category: approach
+    description: "Arrivals and departures in the Stansted terminal area."
+    is_active: false
+    tuner_group: 1
+    verified: false
+
+  - label: "Stansted Director"
+    mhz: 126.95
+    mode: am
+    facility: "London Stansted"
+    category: radar
+    description: "Final approach sequencing onto the Stansted ILS."
+    is_active: false
+    tuner_group: 3
+    verified: false
+
+  - label: "Stansted ATIS"
+    mhz: 127.175
+    mode: am
+    facility: "London Stansted"
+    category: atis
+    description: "Looped airfield information: weather, runway in use."
+    is_active: false
+    tuner_group: 3
+    verified: false
+
+  - label: "London Control (Lambourne sector)"
+    mhz: 118.825
+    mode: am
+    facility: "London Control (Swanwick)"
+    category: area_control
+    description: "En-route sector covering the Lambourne (LAM) hold overhead."
+    is_active: false
+    tuner_group: 1
+    verified: false
+
+  - label: "London Control (Clacton sector)"
+    mhz: 118.48
+    mode: am
+    facility: "London Control (Swanwick)"
+    category: area_control
+    description: "En-route sector for traffic east of the station."
+    is_active: false
+    tuner_group: 1
+    verified: false
+
+  - label: "North Weald Radio"
+    mhz: 123.525
+    mode: am
+    facility: "North Weald Airfield"
+    category: airfield
+    description: "Air/ground radio at the nearby general-aviation airfield."
+    is_active: false
+    tuner_group: 2
+    verified: false
+
+  - label: "Stapleford Radio"
+    mhz: 122.8
+    mode: am
+    facility: "Stapleford Aerodrome"
+    category: airfield
+    description: "Air/ground radio for local training traffic."
+    is_active: false
+    tuner_group: 2
+    verified: false

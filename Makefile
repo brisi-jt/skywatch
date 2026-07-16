@@ -1,4 +1,4 @@
-.PHONY: lint test run-api run-worker
+.PHONY: lint test migrate seed run-api run-worker
 
 lint:
 	uv run ruff check .
@@ -6,6 +6,12 @@ lint:
 
 test:
 	uv run pytest -m "not eval and not network"
+
+migrate:
+	uv run alembic upgrade head
+
+seed:
+	uv run python -m skywatch.db.seed
 
 run-api:
 	uv run python -m skywatch.api
