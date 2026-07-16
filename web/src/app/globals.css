@@ -1,0 +1,180 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Dual-theme palette.
+ * Light — warm listening-post: paper backgrounds, ink text, one signal-amber
+ * accent reserved for "interesting".
+ * Dark — flight-deck: near-black warm panels, phosphor amber/green data
+ * accents. A designed theme, not an inversion. Both hold WCAG AA.
+ */
+:root {
+  --background: oklch(0.968 0.012 85);
+  --foreground: oklch(0.245 0.02 60);
+  --card: oklch(0.985 0.008 85);
+  --card-foreground: oklch(0.245 0.02 60);
+  --popover: oklch(0.99 0.006 85);
+  --popover-foreground: oklch(0.245 0.02 60);
+  --primary: oklch(0.4 0.075 55);
+  --primary-foreground: oklch(0.975 0.01 85);
+  --secondary: oklch(0.93 0.014 80);
+  --secondary-foreground: oklch(0.3 0.03 55);
+  --muted: oklch(0.935 0.012 85);
+  --muted-foreground: oklch(0.47 0.02 60);
+  --accent: oklch(0.92 0.02 75);
+  --accent-foreground: oklch(0.3 0.03 55);
+  --destructive: oklch(0.5 0.17 27);
+  --destructive-foreground: oklch(0.975 0.01 85);
+  --border: oklch(0.885 0.014 80);
+  --input: oklch(0.87 0.015 80);
+  --ring: oklch(0.55 0.12 55);
+
+  /* Signal accent — reserved for "interesting". */
+  --interesting: oklch(0.55 0.14 50);
+  --interesting-foreground: oklch(0.985 0.008 85);
+  --interesting-surface: oklch(0.94 0.045 70);
+  --interesting-surface-foreground: oklch(0.38 0.1 50);
+
+  /* Health */
+  --health-good: oklch(0.44 0.1 150);
+  --health-good-surface: oklch(0.92 0.05 150);
+  --health-warn: oklch(0.5 0.11 75);
+  --health-warn-surface: oklch(0.93 0.06 85);
+  --health-bad: oklch(0.48 0.16 27);
+  --health-bad-surface: oklch(0.93 0.045 27);
+
+  /* Numeric / frequency readouts */
+  --readout: oklch(0.34 0.05 55);
+
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: oklch(0.165 0.01 65);
+  --foreground: oklch(0.88 0.02 85);
+  --card: oklch(0.205 0.012 65);
+  --card-foreground: oklch(0.88 0.02 85);
+  --popover: oklch(0.22 0.012 65);
+  --popover-foreground: oklch(0.88 0.02 85);
+  --primary: oklch(0.82 0.13 80);
+  --primary-foreground: oklch(0.19 0.02 70);
+  --secondary: oklch(0.26 0.014 65);
+  --secondary-foreground: oklch(0.85 0.03 85);
+  --muted: oklch(0.24 0.012 65);
+  --muted-foreground: oklch(0.67 0.02 80);
+  --accent: oklch(0.28 0.02 75);
+  --accent-foreground: oklch(0.88 0.04 85);
+  --destructive: oklch(0.62 0.17 27);
+  --destructive-foreground: oklch(0.15 0.01 27);
+  --border: oklch(0.3 0.015 70);
+  --input: oklch(0.32 0.015 70);
+  --ring: oklch(0.75 0.12 80);
+
+  --interesting: oklch(0.8 0.14 75);
+  --interesting-foreground: oklch(0.19 0.02 70);
+  --interesting-surface: oklch(0.27 0.045 70);
+  --interesting-surface-foreground: oklch(0.87 0.1 80);
+
+  --health-good: oklch(0.8 0.15 145);
+  --health-good-surface: oklch(0.25 0.04 150);
+  --health-warn: oklch(0.82 0.13 85);
+  --health-warn-surface: oklch(0.27 0.04 85);
+  --health-bad: oklch(0.7 0.16 27);
+  --health-bad-surface: oklch(0.26 0.045 27);
+
+  /* Phosphor readouts for numbers on the flight deck. */
+  --readout: oklch(0.84 0.13 130);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-interesting: var(--interesting);
+  --color-interesting-foreground: var(--interesting-foreground);
+  --color-interesting-surface: var(--interesting-surface);
+  --color-interesting-surface-foreground: var(--interesting-surface-foreground);
+  --color-health-good: var(--health-good);
+  --color-health-good-surface: var(--health-good-surface);
+  --color-health-warn: var(--health-warn);
+  --color-health-warn-surface: var(--health-warn-surface);
+  --color-health-bad: var(--health-bad);
+  --color-health-bad-surface: var(--health-bad-surface);
+  --color-readout: var(--readout);
+
+  --font-sans: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-readout), ui-monospace, monospace;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    /* Readability baseline for the station's primary reader: 18px body. */
+    font-size: 18px;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    line-height: 1.6;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-display;
+  }
+}
+
+/* The one continuous animation: the listening pulse. CSS-only. */
+@keyframes listening-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scale(1.35);
+    opacity: 0.12;
+  }
+}
+
+.listening-pulse::before {
+  content: "";
+  position: absolute;
+  inset: -0.5rem;
+  border-radius: 9999px;
+  border: 2px solid var(--interesting);
+  animation: listening-pulse 2.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .listening-pulse::before {
+    animation: none;
+    opacity: 0.35;
+  }
+}
