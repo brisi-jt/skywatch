@@ -27,6 +27,14 @@ to use submitted content (here: transcribed radio text) to improve their
 products. If that is unacceptable, configure a paid tier, an alternative
 provider, or `llm.provider: none` for prefilter-only classification.
 
+## Data attribution
+
+`content/airlines.dat` is the airlines database from
+[OpenFlights](https://openflights.org/data), used to map radio callsign
+prefixes to airline names. It is made available under the
+[Open Database License (ODbL) 1.0](https://opendatacommons.org/licenses/odbl/1-0/);
+the data itself is under the Database Contents License 1.0.
+
 ## Quickstart
 
 Requires Python 3.12 managed by [uv](https://docs.astral.sh/uv/).
