@@ -20,12 +20,19 @@ interface WsState {
   pendingNewClips: number;
   /** Fold pending arrivals in: refetch the lists, clear the pill. */
   foldInNewClips: () => void;
+  /**
+   * Be told about each new clip as it lands (payload: the list-item summary).
+   * Returns an unsubscribe function. Used by the tuning bench's jewel lamps;
+   * listeners must be cheap — they run on the socket's message path.
+   */
+  onNewRecording: (listener: (summary: RecordingSummary) => void) => () => void;
 }
 
 const WsContext = createContext<WsState>({
   connected: true,
   pendingNewClips: 0,
   foldInNewClips: () => {},
+  onNewRecording: () => () => {},
 });
 
 export function useWs() {
@@ -47,6 +54,14 @@ export function WsProvider({ children }: { children: React.ReactNode }) {
   const [connected, setConnected] = useState(true);
   const [pendingNewClips, setPendingNewClips] = useState(0);
   const retryRef = useRef(0);
+  const newRecordingListeners = useRef(new Set<(summary: RecordingSummary) => void>());
+
+  const onNewRecording = useCallback((listener: (summary: RecordingSummary) => void) => {
+    newRecordingListeners.current.add(listener);
+    return () => {
+      newRecordingListeners.current.delete(listener);
+    };
+  }, []);
 
   const foldInNewClips = useCallback(() => {
     setPendingNewClips(0);
@@ -63,6 +78,8 @@ export function WsProvider({ children }: { children: React.ReactNode }) {
     const handleEvent = (event: StreamEvent) => {
       if (event.type === "recording.new") {
         setPendingNewClips((n) => n + 1);
+        const summary = event.payload as RecordingSummary;
+        newRecordingListeners.current.forEach((listener) => listener(summary));
         // Day-one → first-clip transition must not wait for the pill.
         const hadAny = queryClient.getQueryData<boolean>(["recordings-any"]);
         if (hadAny === false) {
@@ -148,7 +165,7 @@ export function WsProvider({ children }: { children: React.ReactNode }) {
   }, [queryClient]);
 
   return (
-    <WsContext.Provider value={{ connected, pendingNewClips, foldInNewClips }}>
+    <WsContext.Provider value={{ connected, pendingNewClips, foldInNewClips, onNewRecording }}>
       {children}
     </WsContext.Provider>
   );

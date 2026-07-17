@@ -283,9 +283,149 @@ export interface paths {
         head?: never;
         /**
          * Update station settings
-         * @description Partial update: send only the keys to change. `station_name` is currently the only editable key; anything else is rejected with a 400 problem detail listing the allowed keys. A successful rename is announced on the event stream as `status.changed`, so other open dashboards update live.
+         * @description Partial update: send only the keys to change. Editable keys: `station_name`, and `tuning.walkthrough_done` ('true' or 'false'); anything else is rejected with a 400 problem detail listing the allowed keys. A successful rename is announced on the event stream as `status.changed`, so other open dashboards update live.
          */
         patch: operations["patch_settings_settings_patch"];
+        trace?: never;
+    };
+    "/tuning": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the station's tuning state
+         * @description The tuning levers as currently applied — tuner gain, the squelch threshold (station default plus any per-frequency overrides), and the frequency correction in ppm — alongside the saved baseline (null until one is saved), the shipped factory values, and the tuner's real gain steps. Gain controls should offer exactly the listed steps: the hardware cannot sit between them. `deep_tune` reports whether an exclusive off-air spectrum session is running, and if so how long it has left before the idle timeout.
+         */
+        get: operations["get_tuning_tuning_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tuning/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply a new set of tuning values
+         * @description Persists a complete set of tuning values, rewrites the capture configuration, and restarts capture — the station is off-air for around five seconds. The request is the full value set, not a delta: send the current value for levers that are not changing, and omit a per-frequency override to remove it. Gain is snapped to the tuner's nearest real step. When any value fails validation, nothing is applied and the 422 problem detail names the offender.
+         */
+        post: operations["post_apply_tuning_apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tuning/baseline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Save the applied values as the station baseline
+         * @description Snapshots the currently applied tuning values as the station's baseline — the values each lever's reset control returns to. Replaces any previously saved baseline.
+         */
+        post: operations["post_baseline_tuning_baseline_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tuning/meters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the live channel meters
+         * @description Per-frequency readings from the capture process's statistics file (rewritten every 15 seconds while capture runs) merged with recording activity: signal and noise in dBFS, the derived signal-to-noise ratio, squelch opens, clips in the last hour, when each frequency last heard a transmission, and clip counts since tuning was last applied. When `stats.present` is false the file has not been written yet — the station may still be starting — and when `stats.stale` is true the numbers are old and meters should show a paused state rather than live values.
+         */
+        get: operations["get_meters_tuning_meters_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tuning/deep-tune/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start an exclusive off-air spectrum session
+         * @description Stops capture, opens the receiver directly, and streams `spectrum.frame` events over `WS /stream` a few times a second — the station records nothing while the session runs. The server ends the session itself after ten minutes without a ping (a `deep_tune.state` warning event fires one minute beforehand) or within about thirty seconds of every stream client disappearing; every exit path restarts capture.
+         */
+        post: operations["post_deep_tune_start_tuning_deep_tune_start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tuning/deep-tune/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stop the deep tune session
+         * @description Ends the running spectrum session and restarts capture before responding — the station is back on air when this returns.
+         */
+        post: operations["post_deep_tune_stop_tuning_deep_tune_stop_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tuning/deep-tune/ping": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Keep the deep tune session alive
+         * @description Resets the session's idle countdown. Send one whenever the operator interacts with the tuning bench, and periodically while the spectrum view is open.
+         */
+        post: operations["post_deep_tune_ping_tuning_deep_tune_ping_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
 }
@@ -297,7 +437,7 @@ export interface components {
          * @description Stable machine-readable error codes for problem responses.
          * @enum {string}
          */
-        APIErrorCode: "validation_error" | "not_found" | "frequency_not_found" | "recording_not_found" | "document_not_found" | "audio_deleted" | "audio_file_missing" | "window_conflict" | "unknown_setting_key" | "invalid_setting_value" | "recording_not_classifiable" | "method_not_allowed" | "internal_error";
+        APIErrorCode: "validation_error" | "not_found" | "frequency_not_found" | "recording_not_found" | "document_not_found" | "audio_deleted" | "audio_file_missing" | "window_conflict" | "unknown_setting_key" | "invalid_setting_value" | "tuning_invalid_value" | "tuning_unknown_frequency" | "deep_tune_unavailable" | "deep_tune_active" | "deep_tune_not_active" | "recording_not_classifiable" | "method_not_allowed" | "internal_error";
         /**
          * AircraftMatchResource
          * @description A probable aircraft near the station when the clip was captured.
@@ -346,6 +486,29 @@ export interface components {
              * Format: date-time
              */
             queried_at: string;
+        };
+        /**
+         * AppliedTuning
+         * @description One complete set of tuning values.
+         */
+        AppliedTuning: {
+            /**
+             * Gain Db
+             * @description RTL-SDR tuner gain; always one of the real gain steps.
+             */
+            gain_db: number;
+            /**
+             * Squelch Default Snr Db
+             * @description Station-wide squelch threshold: recording starts when a signal rises this many dB above the channel's noise floor.
+             */
+            squelch_default_snr_db: number;
+            /**
+             * Ppm
+             * @description Frequency correction for the dongle's crystal offset, in parts per million.
+             */
+            ppm: number;
+            /** Squelch Overrides */
+            squelch_overrides: components["schemas"]["SquelchOverride"][];
         };
         /**
          * AsrEngine
@@ -401,6 +564,12 @@ export interface components {
              * @description Tuner centre frequency for the active plan; null in scan mode.
              */
             centerfreq_mhz: number | null;
+            /**
+             * Deep Tune Active
+             * @description True while a deep tune session has the receiver: capture is deliberately off-air, not failed.
+             * @default false
+             */
+            deep_tune_active: boolean;
         };
         /**
          * CaptureTrace
@@ -412,6 +581,54 @@ export interface components {
             db_intent: components["schemas"]["TraceIntent"];
             rendered_conf: components["schemas"]["TraceConf"];
             process: components["schemas"]["TraceProcess"];
+        };
+        /**
+         * ChannelMeter
+         * @description One frequency's live readings and recent activity.
+         */
+        ChannelMeter: {
+            /** Freq Id */
+            freq_id: number;
+            /** Label */
+            label: string;
+            /** Mhz */
+            mhz: number;
+            /**
+             * Signal Dbfs
+             * @description Signal level relative to full scale; null while no stats are available.
+             */
+            signal_dbfs: number | null;
+            /** Noise Dbfs */
+            noise_dbfs: number | null;
+            /**
+             * Snr Db
+             * @description Signal above the noise floor — the number squelch compares against.
+             */
+            snr_db: number | null;
+            /**
+             * Squelch Level Dbfs
+             * @description The level at which squelch currently opens on this channel.
+             */
+            squelch_level_dbfs: number | null;
+            /**
+             * Squelch Open Count
+             * @description Times squelch has opened since capture started.
+             */
+            squelch_open_count: number | null;
+            /**
+             * Flappy Count
+             * @description Times squelch opened and closed in quick succession — a high count suggests the threshold sits too close to the noise floor.
+             */
+            flappy_count: number | null;
+            /** Clips Last Hour */
+            clips_last_hour: number;
+            /** Last Heard Utc */
+            last_heard_utc: string | null;
+            /**
+             * Clips Since Apply
+             * @description Clips recorded since tuning was last applied; null if never applied.
+             */
+            clips_since_apply: number | null;
         };
         /**
          * ClassificationCategory
@@ -478,6 +695,48 @@ export interface components {
          */
         ConfState: "match" | "stale" | "missing" | "not_applicable";
         /**
+         * DeepTuneSessionResponse
+         * @description The deep tune session as the start, stop, and ping endpoints report it.
+         */
+        DeepTuneSessionResponse: {
+            /**
+             * Links
+             * @description HAL links: self plus related resources and the actions currently available on this resource.
+             */
+            _links?: {
+                [key: string]: components["schemas"]["Link"];
+            };
+            deep_tune: components["schemas"]["DeepTuneState"];
+            /**
+             * Center Mhz
+             * @description Centre of the spectrum window being streamed; null when inactive.
+             */
+            center_mhz?: number | null;
+            /**
+             * Span Mhz
+             * @description Full width of the spectrum window in MHz; null when inactive.
+             */
+            span_mhz?: number | null;
+        };
+        /**
+         * DeepTuneState
+         * @description Whether an exclusive off-air spectrum session is running.
+         */
+        DeepTuneState: {
+            /** Active */
+            active: boolean;
+            /**
+             * Started At
+             * @description When the session began; null when inactive.
+             */
+            started_at?: string | null;
+            /**
+             * Seconds Remaining Before Timeout
+             * @description Seconds until the session ends itself for lack of interaction; null when inactive. Pings reset the countdown.
+             */
+            seconds_remaining_before_timeout?: number | null;
+        };
+        /**
          * DigestResponse
          * @description One local day on the airwaves, summarised.
          */
@@ -542,6 +801,18 @@ export interface components {
             name: string;
             /** Markdown */
             markdown: string;
+        };
+        /**
+         * FactoryTuning
+         * @description The values the station shipped with; the reset of last resort.
+         */
+        FactoryTuning: {
+            /** Gain Db */
+            gain_db: number;
+            /** Squelch Default Snr Db */
+            squelch_default_snr_db: number;
+            /** Ppm */
+            ppm: number;
         };
         /**
          * FeedbackCounts
@@ -708,6 +979,23 @@ export interface components {
         Link: {
             /** Href */
             href: string;
+        };
+        /**
+         * MetersResponse
+         * @description Live meter readings for every active frequency.
+         */
+        MetersResponse: {
+            /**
+             * Links
+             * @description HAL links: self plus related resources and the actions currently available on this resource.
+             */
+            _links?: {
+                [key: string]: components["schemas"]["Link"];
+            };
+            stats: components["schemas"]["StatsFileState"];
+            /** Channels */
+            channels: components["schemas"]["ChannelMeter"][];
+            since_last_apply: components["schemas"]["SinceLastApply"] | null;
         };
         /**
          * ProblemDetail
@@ -906,6 +1194,63 @@ export interface components {
             };
             /** Station Name */
             station_name: string | null;
+            /**
+             * Tuning Walkthrough Done
+             * @description Whether the tuning bench's one-time introductory tour has been completed or dismissed.
+             */
+            tuning_walkthrough_done: boolean;
+        };
+        /**
+         * SinceLastApply
+         * @description Activity since the most recent tuning apply, for before/after comparison.
+         */
+        SinceLastApply: {
+            /**
+             * Applied At
+             * Format: date-time
+             */
+            applied_at: string;
+            /** Total Clips */
+            total_clips: number;
+        };
+        /**
+         * SquelchOverride
+         * @description A per-frequency squelch threshold that beats the station default.
+         */
+        SquelchOverride: {
+            /** Freq Id */
+            freq_id: number;
+            /** Label */
+            label: string;
+            /** Mhz */
+            mhz: number;
+            /** Squelch Snr Db */
+            squelch_snr_db: number;
+        };
+        /** SquelchOverrideRequest */
+        SquelchOverrideRequest: {
+            /** Freq Id */
+            freq_id: number;
+            /** Squelch Snr Db */
+            squelch_snr_db: number;
+        };
+        /**
+         * StatsFileState
+         * @description Freshness of the capture process's statistics file.
+         */
+        StatsFileState: {
+            /**
+             * Present
+             * @description False until capture has written the file at least once.
+             */
+            present: boolean;
+            /**
+             * Stale
+             * @description True when the file has not been rewritten recently; the numbers describe a process that is no longer reporting, so meters should show a paused state.
+             */
+            stale: boolean;
+            /** Updated At */
+            updated_at: string | null;
         };
         /** StatusBudgets */
         StatusBudgets: {
@@ -1003,6 +1348,91 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+        };
+        /**
+         * TuningApplyRequest
+         * @description A complete set of tuning values — not a delta.
+         *
+         *     Send the current value for any lever that is not changing; a
+         *     per-frequency override omitted here is removed.
+         */
+        TuningApplyRequest: {
+            /** Gain Db */
+            gain_db: number;
+            /** Squelch Default Snr Db */
+            squelch_default_snr_db: number;
+            /** Ppm */
+            ppm: number;
+            /**
+             * Squelch Overrides
+             * @default []
+             */
+            squelch_overrides: components["schemas"]["SquelchOverrideRequest"][];
+        };
+        /**
+         * TuningApplyResponse
+         * @description The tuning state after an apply, plus how the restart went.
+         */
+        TuningApplyResponse: {
+            /**
+             * Links
+             * @description HAL links: self plus related resources and the actions currently available on this resource.
+             */
+            _links?: {
+                [key: string]: components["schemas"]["Link"];
+            };
+            /** @description The values capture is currently running with. */
+            applied: components["schemas"]["AppliedTuning"];
+            /** @description The saved station defaults that per-lever reset returns to, or null when none have been saved yet (factory values apply). */
+            baseline: components["schemas"]["AppliedTuning"] | null;
+            factory: components["schemas"]["FactoryTuning"];
+            /**
+             * Gain Steps Db
+             * @description The tuner's real gain ladder. Gain controls should offer exactly these values; anything else is snapped to the nearest step.
+             */
+            gain_steps_db: number[];
+            /**
+             * Last Applied At
+             * @description When tuning values were last applied, or null if never.
+             */
+            last_applied_at: string | null;
+            deep_tune: components["schemas"]["DeepTuneState"];
+            /** Capture Restarted */
+            capture_restarted: boolean;
+            /**
+             * Warnings
+             * @description Non-fatal notes, e.g. a capture restart that could not complete.
+             */
+            warnings: string[];
+        };
+        /**
+         * TuningResponse
+         * @description The tuning bench's full state.
+         */
+        TuningResponse: {
+            /**
+             * Links
+             * @description HAL links: self plus related resources and the actions currently available on this resource.
+             */
+            _links?: {
+                [key: string]: components["schemas"]["Link"];
+            };
+            /** @description The values capture is currently running with. */
+            applied: components["schemas"]["AppliedTuning"];
+            /** @description The saved station defaults that per-lever reset returns to, or null when none have been saved yet (factory values apply). */
+            baseline: components["schemas"]["AppliedTuning"] | null;
+            factory: components["schemas"]["FactoryTuning"];
+            /**
+             * Gain Steps Db
+             * @description The tuner's real gain ladder. Gain controls should offer exactly these values; anything else is snapped to the nearest step.
+             */
+            gain_steps_db: number[];
+            /**
+             * Last Applied At
+             * @description When tuning values were last applied, or null if never.
+             */
+            last_applied_at: string | null;
+            deep_tune: components["schemas"]["DeepTuneState"];
         };
         /** ValidationError */
         ValidationError: {
@@ -1569,6 +1999,204 @@ export interface operations {
             };
             /** @description Invalid setting value. */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    get_tuning_tuning_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TuningResponse"];
+                };
+            };
+        };
+    };
+    post_apply_tuning_apply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TuningApplyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TuningApplyResponse"];
+                };
+            };
+            /** @description A deep tune session has the receiver; stop it first. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description A value is out of range or names an unknown frequency. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    post_baseline_tuning_baseline_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TuningResponse"];
+                };
+            };
+        };
+    };
+    get_meters_tuning_meters_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MetersResponse"];
+                };
+            };
+        };
+    };
+    post_deep_tune_start_tuning_deep_tune_start_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeepTuneSessionResponse"];
+                };
+            };
+            /** @description A deep tune session is already running. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description The station cannot stream a spectrum: it is in replay mode, receiver support is not installed, or nothing is active. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    post_deep_tune_stop_tuning_deep_tune_stop_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeepTuneSessionResponse"];
+                };
+            };
+            /** @description No deep tune session is running. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    post_deep_tune_ping_tuning_deep_tune_ping_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeepTuneSessionResponse"];
+                };
+            };
+            /** @description No deep tune session is running. */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

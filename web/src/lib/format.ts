@@ -84,6 +84,6 @@ export function gb(value: number): string {
 const API_TIMESTAMP_HAS_ZONE = /(Z|[+-]\d{2}:?\d{2})$/;
 
 /** API timestamps are UTC; some arrive without an explicit zone suffix. */
-function ensureUtc(value: string): string {
+export function ensureUtc(value: string): string {
   return API_TIMESTAMP_HAS_ZONE.test(value) ? value : `${value}Z`;
 }

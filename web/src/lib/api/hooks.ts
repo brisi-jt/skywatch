@@ -7,7 +7,13 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 
-import { api, asProblem, type ProblemDetail, type RecordingListResponse } from "./client";
+import {
+  api,
+  asProblem,
+  type ProblemDetail,
+  type RecordingListResponse,
+  type TuningApplyRequest,
+} from "./client";
 
 export class ApiError extends Error {
   problem: ProblemDetail | null;
@@ -198,8 +204,71 @@ export function useSaveSettings() {
       const result = await api.PATCH("/settings", { body: payload });
       return unwrap(result);
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["status"] });
+      queryClient.setQueryData(["settings"], data);
+    },
+  });
+}
+
+export function useSettings() {
+  return useQuery({
+    queryKey: ["settings"],
+    queryFn: async () => {
+      const result = await api.GET("/settings");
+      return unwrap(result);
+    },
+  });
+}
+
+// -- tuning bench -------------------------------------------------------------------
+
+export function useTuning() {
+  return useQuery({
+    queryKey: ["tuning"],
+    queryFn: async () => {
+      const result = await api.GET("/tuning");
+      return unwrap(result);
+    },
+  });
+}
+
+/** Live meters, polled at the capture process's own 15 s stats cadence. */
+export function useTuningMeters() {
+  return useQuery({
+    queryKey: ["tuning-meters"],
+    queryFn: async () => {
+      const result = await api.GET("/tuning/meters");
+      return unwrap(result);
+    },
+    refetchInterval: 15_000,
+  });
+}
+
+export function useApplyTuning() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: TuningApplyRequest) => {
+      const result = await api.POST("/tuning/apply", { body: payload });
+      return unwrap(result);
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(["tuning"], data);
+      queryClient.invalidateQueries({ queryKey: ["tuning-meters"] });
+      queryClient.invalidateQueries({ queryKey: ["status"] });
+    },
+  });
+}
+
+export function useSaveBaseline() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const result = await api.POST("/tuning/baseline");
+      return unwrap(result);
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(["tuning"], data);
     },
   });
 }

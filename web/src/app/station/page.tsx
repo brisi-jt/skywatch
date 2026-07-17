@@ -6,6 +6,7 @@ import { HealthChip } from "@/components/chips";
 import { deriveHealth } from "@/components/health-strip";
 import { FrequencyTable } from "@/components/frequency-table";
 import { GaugeBar } from "@/components/gauge-bar";
+import { TuningEntryCard } from "@/components/tuning/entry-card";
 import type { BudgetInfo, StatusResponse } from "@/lib/api/client";
 import { useFrequencies, useStatus } from "@/lib/api/hooks";
 import { gb, mhz } from "@/lib/format";
@@ -68,6 +69,8 @@ export default function StationPage() {
       </section>
 
       {/* Layer 2 — the instrument panel */}
+      <TuningEntryCard />
+
       <section aria-labelledby="frequencies-heading">
         <h2 id="frequencies-heading" className="font-display text-xl font-semibold">
           Frequencies

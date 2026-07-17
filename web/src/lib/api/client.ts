@@ -27,6 +27,14 @@ export type RecordingListResponse = Schemas["RecordingListResponse"];
 export type SettingsResponse = Schemas["SettingsResponse"];
 export type DocumentResponse = Schemas["DocumentResponse"];
 export type BudgetInfo = Schemas["BudgetInfo"];
+export type TuningResponse = Schemas["TuningResponse"];
+export type TuningApplyRequest = Schemas["TuningApplyRequest"];
+export type TuningApplyResponse = Schemas["TuningApplyResponse"];
+export type AppliedTuning = Schemas["AppliedTuning"];
+export type FactoryTuning = Schemas["FactoryTuning"];
+export type SquelchOverride = Schemas["SquelchOverride"];
+export type MetersResponse = Schemas["MetersResponse"];
+export type ChannelMeter = Schemas["ChannelMeter"];
 
 export function audioUrl(recordingId: number): string {
   return `${API_BASE}/recordings/${recordingId}/audio`;
