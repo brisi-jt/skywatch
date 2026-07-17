@@ -87,34 +87,66 @@ Aircraft several miles up are easy to hear. The control tower's side of the
 conversation is ground-level and much harder — if you hear pilots clearly
 but the tower rarely, that's the physics, not a fault.
 
-## Tuning: gain and squelch
+## Tuning
 
-Two settings decide what gets recorded. They live in the station's
-configuration file, and tuning them is a **(remote admin)** job, but it
-helps to know what they mean when you're describing a problem.
+The settings that decide what gets recorded live in the dashboard: open the
+**Station** view and press **Open the tuning bench**. Every lever on the
+bench explains itself — the "What do these do?" button lays a plain-English
+note over each one — but here is the short version:
 
 - **Gain** is the radio's volume knob at the aerial end — how hard it
-  amplifies whatever the antenna picks up. Too low and distant aircraft are
-  missed. Too high and the receiver is deafened by strong local signals
-  (see "lots of junk clips" below).
+  amplifies whatever the antenna picks up, voices and static alike. Too low
+  and distant aircraft are missed. Too high and the receiver is deafened by
+  strong local signals (see "lots of junk clips" below). The fader clicks
+  between the steps the radio's own chip supports.
 - **Squelch** is the tripwire that starts a recording. The receiver hears
   faint hiss all the time; squelch says "only record when a signal stands
   out this far above the hiss". Too high and quiet transmissions never trip
-  it. Too low and it records bursts of empty static.
+  it. Too low and it records bursts of empty static. The amber line on each
+  channel's meter is that tripwire, drawn on the same scale the meter moves
+  on — and a single noisy channel can be given its own line without
+  touching the rest.
+- **Frequency trim** corrects the dongle's clock, which runs a whisker fast
+  or slow. If signals sit slightly off their frequencies, a few clicks of
+  the trim knob recentre everything at once.
 
-The tuning loop **(remote admin)** — edit `config/config.yaml`, restart the
-station, watch the dashboard:
+Moving levers changes nothing by itself — the bench stages your changes and
+shows little tags for what would change. Pressing **Apply** rewrites the
+radio's instructions and restarts it, which takes the station **off the air
+for about five seconds**. That's the whole cost, and the bench warns you on
+the button itself.
 
-1. Start with `gain: 32.0` and `squelch_snr_threshold: 12`.
+The tuning loop, watching the live meters between steps:
+
+1. Start from the saved defaults — every lever has a reset chip that takes
+   it there.
 2. **No clips at all** on a frequency you know is busy? Lower the squelch
-   threshold a couple of points at a time (12 → 10 → 8) until clips appear.
+   threshold a couple of points at a time (12 → 10 → 8) and apply, until
+   clips appear.
 3. **Streams of short, empty, static-only clips?** Raise the squelch
    threshold a couple of points.
 4. **Distorted audio, or clips triggering with nobody talking even at high
-   squelch?** Lower the gain in steps (32 → 25 → 20). Strong local FM and
+   squelch?** Lower the gain in steps (33 → 25 → 20). Strong local FM and
    broadcast transmitters can overload the dongle; less gain helps it cope.
 5. Change one thing at a time, and give each change ten minutes of real
    traffic before judging it.
+
+When the station sounds right, finish the ritual: press **Save these as the
+station defaults**. From then on every reset chip returns to the setup you
+blessed, not the factory numbers — so future experiments always have a safe
+way home.
+
+**Deep Tune** is the bench's spectrum scope: a live picture of the whole
+slice of dial the station watches, with each active frequency marked. The
+radio can only do one job at a time, so **the station stops recording while
+Deep Tune is open** — it asks before opening, an amber banner counts the
+time off the air, and it closes itself after ten quiet minutes. Recording
+restarts the moment it closes, whichever way it closes.
+
+One note for the curious **(remote admin)**: the gain and squelch lines in
+`config/config.yaml` only seed a brand-new station. After first start, the
+dashboard's tuning bench owns these values — editing the file won't change
+them.
 
 ## Changing which frequencies it listens to
 
@@ -190,16 +222,17 @@ really is producing nothing:
   dongle present?
 - Check the antenna hasn't been knocked over, collapsed, or unscrewed.
 - If everything looks healthy, the squelch may be set too high to trip —
-  that's the tuning loop above **(remote admin)**.
+  that's the tuning loop above, on the dashboard's tuning bench.
 
 ### Lots of junk clips — static, buzzing, or music
 
 Bursts of static mean the squelch tripwire is set too sensitive. Buzzing,
 garbled audio, or fragments of FM radio or broadcast stations mean a strong
-local transmitter is overloading the receiver — the fix is lower gain, and
-if that's not enough, a small plug-in "FM band-stop filter" between the
-antenna and the dongle (a few pounds, and it removes the FM band before it
-reaches the receiver). Both are **(remote admin)** tuning jobs.
+local transmitter is overloading the receiver — the fix is lower gain on
+the dashboard's tuning bench (see the Tuning section), and if that's not
+enough, a small plug-in "FM band-stop filter" between the antenna and the
+dongle (a few pounds, and it removes the FM band before it reaches the
+receiver).
 
 ### The dashboard says the disk is nearly full
 
@@ -238,8 +271,9 @@ Setting the station up on a fresh machine, in order:
 6. Verify the frequency plan against current official sources — every
    frequency except the 121.5 guard ships marked VERIFY. Correct any that
    have changed, and mark them verified.
-7. Tune gain and squelch (the loop above) until transmissions split cleanly
-   into clips.
+7. Tune gain and squelch from the dashboard's tuning bench (the loop in the
+   Tuning section) until transmissions split cleanly into clips, then save
+   them as the station defaults.
 8. Set `capture.source: live` and `capture.supervisor: launchctl` in
    `config/config.yaml`, restart the services, and watch the first real
    clips appear on the dashboard with transcripts and aircraft matches.

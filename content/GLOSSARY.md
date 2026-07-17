@@ -52,13 +52,22 @@ It is often *not* what's said on the radio — the radio callsign can differ
 from the marketed flight number. The station shows its best guess at the
 flight number alongside the callsign, clearly marked as a guess.
 
+## Frequency trim (ppm)
+
+A tiny correction for the radio dongle's internal clock, which always runs
+a whisker fast or slow. Every frequency the dongle tunes is derived from
+that clock, so the whole dial drifts by the same fraction — measured in
+parts per million (ppm). A few clicks of the trim knob on the tuning bench
+recentre everything at once; most dongles want a correction within about
+ten either way.
+
 ## Gain
 
 How strongly the receiver amplifies what the antenna picks up — the volume
 knob at the aerial end. Too little gain and weak, distant aircraft go
 unheard; too much and strong local transmitters overload the receiver and
-everything turns to mush. Set in the station's configuration; see the
-runbook's tuning section.
+everything turns to mush. Adjusted from the dashboard's tuning bench; see
+the runbook's tuning section for the loop.
 
 ## Go-around
 
@@ -101,6 +110,14 @@ over all other traffic. Extremely rare in real life. The station treats any
 transcript containing it as top-priority interesting, which also means the
 occasional false alarm when the transcription mishears something.
 
+## Noise floor
+
+The receiver's constant background hiss — the faint static carpet that is
+there even when nobody is transmitting. A real signal has to stand clear of
+this floor to be heard at all, which is why the tuning bench measures every
+signal by how far above the floor it rises (see SNR), and why the deep tune
+scope draws the floor as the flat carpet the peaks grow out of.
+
 ## Pan-pan
 
 One step below mayday: "pan pan, pan pan, pan pan" declares an urgent
@@ -132,6 +149,24 @@ for safety-critical instructions, and the reason so much of what you'll
 hear sounds like an echo. A transcript that seems to say everything twice
 is working exactly as intended.
 
+## SNR (signal-to-noise ratio)
+
+How far a signal stands above the background hiss, in decibels — the one
+number most of the station's tuning turns on. The channel meters on the
+tuning bench show it live, and the squelch threshold is set on the same
+scale: when a frequency's SNR climbs past the threshold, recording opens.
+A strong, close transmission might read 40 dB; a faint, distant one just a
+few.
+
+## Spectrum
+
+A picture of a slice of the radio dial: frequency runs left to right,
+signal strength bottom to top, so every transmission appears as a peak
+rising from the noise floor. The tuning bench's Deep Tune scope draws the
+station's whole listening window this way, live. (A *waterfall* is the same
+picture stacked over time, scrolling like sheet music — flight-deck
+software loves them, but the scope here keeps to the live view.)
+
 ## Squawk
 
 A four-digit code a controller assigns to an aircraft ("squawk 4271"),
@@ -147,8 +182,8 @@ The receiver's tripwire: it mutes the constant background hiss and only
 opens — starting a recording — when a signal rises far enough above it.
 The squelch threshold decides how far is "far enough". Too high and quiet
 transmissions are missed; too low and the station records bursts of empty
-static. Set in the station's configuration; see the runbook's tuning
-section.
+static. The amber line on each of the tuning bench's meters is the
+threshold — drag it, or use the arrow keys, and apply.
 
 ## TCAS
 

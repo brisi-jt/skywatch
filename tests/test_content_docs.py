@@ -73,8 +73,18 @@ class TestRunbookStructure:
             "frequenc",
             "disk",
             "launchctl",
+            "tuning bench",
+            "deep tune",
+            "station defaults",
         ):
             assert topic in text, f"runbook is missing coverage of: {topic}"
+
+    def test_tuning_section_names_the_off_air_costs(self):
+        """Both off-air moments — Apply's restart and Deep Tune's exclusive
+        session — must be spelled out where the reader learns to tune."""
+        text = RUNBOOK.read_text().lower()
+        assert "off the air" in text
+        assert "stops recording" in text
 
     def test_carries_the_uk_legal_disclaimer(self):
         text = RUNBOOK.read_text()
@@ -111,6 +121,11 @@ class TestGlossaryStructure:
             "pan-pan",
             "tcas",
             "go-around",
+            # vocabulary the tuning bench and deep tune scope surface
+            "noise floor",
+            "snr",
+            "spectrum",
+            "frequency trim",
         ):
             assert term in text, f"glossary is missing: {term}"
 

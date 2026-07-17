@@ -76,6 +76,39 @@ concurrently and should stay the default; scan is for coverage breadth over
 completeness. A second dongle running a second rtl_airband instance is the
 real answer to "both, please".
 
+## Live audio monitor in Deep Tune
+
+The tuning bench's Deep Tune scope already holds the receiver exclusively
+and streams spectrum frames; the same pyrtlsdr session could demodulate one
+selected channel (AM at these frequencies is a vectorised numpy one-liner:
+magnitude, DC-strip, decimate) and stream it to the browser for live
+listening while tuning — "click a channel marker, hear it now". Transport
+is the open question worth solving first: the existing `WS /stream` is a
+JSON event bus, so audio wants either a second binary WebSocket or
+MediaSource-friendly chunks over HTTP. Everything else (session lifecycle,
+timeouts, capture restart) is already built.
+
+## Always-on metering architectures (rejected)
+
+Two ways to meter the spectrum *without* stopping capture were evaluated
+and rejected; recorded here so the conclusion isn't re-derived from
+scratch.
+
+- **Permanent IQ fan-out** (`rtl_tcp` → `rtlmux` → SoapyRTLTCP plugin, with
+  rtl_airband and a metering client both consuming the mux): every hop is
+  real, but the chain costs 8-bit samples, a shared gain setting, three
+  always-on processes, and a low-maturity Soapy plugin — a Rube Goldberg
+  machine guarding a ~5-second capture restart. Rejected on
+  complexity-to-benefit.
+- **ka9q-radio (`radiod`)**, the elegant multichannel answer: its author
+  ships and supports it as Linux-only, and this station's production host
+  is a Mac. Eliminated on platform.
+
+Deep Tune's stop-meter-restart model is the deliberate outcome, not a
+stopgap: one dongle has one USB claimant, and the honest costs (a confirm,
+an amber banner, an auto-timeout) beat a permanently degraded capture
+chain.
+
 ## ACARS / VDL2
 
 Aircraft also send short digital telex-style messages (ACARS on ~131.725
