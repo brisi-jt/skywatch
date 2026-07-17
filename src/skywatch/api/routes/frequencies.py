@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends
 from sqlmodel import Session, select
 from starlette import status
 
-from skywatch.api.deps import get_capture, get_session, get_settings
+from skywatch.api.deps import get_capture, get_deep_tune, get_session, get_settings
 from skywatch.api.errors import APIErrorCode, ProblemDetail, ProblemException
 from skywatch.api.schemas import (
     FrequencyActionResponse,
@@ -15,6 +15,7 @@ from skywatch.api.schemas import (
     Link,
 )
 from skywatch.api.services.capture import CaptureController
+from skywatch.api.services.deep_tune import DeepTuneManager
 from skywatch.capture.validate import validate_frequencies
 from skywatch.db.models import Frequency
 from skywatch.settings import Settings
@@ -40,6 +41,18 @@ def _resource(freq: Frequency) -> FrequencyResource:
             "recordings": Link(href=f"/recordings?freq_id={freq.id}"),
         },
     )
+
+
+def _reject_while_deep_tune_active(deep_tune: DeepTuneManager) -> None:
+    """Changing the plan restarts capture, which cannot claim the receiver
+    while a deep tune session holds it — the same guard as tuning apply."""
+    if deep_tune.active:
+        raise ProblemException(
+            status.HTTP_409_CONFLICT,
+            APIErrorCode.DEEP_TUNE_ACTIVE,
+            "a deep tune session has the receiver; exit deep tune before "
+            "changing which frequencies are recorded",
+        )
 
 
 def _get_frequency(session: Session, freq_id: int) -> Frequency:
@@ -90,13 +103,18 @@ def list_frequencies(
         "set that does fit. Switching the station to scan mode is the "
         "alternative escape hatch, at the cost of missing concurrent "
         "transmissions. Activating an already-active frequency changes "
-        "nothing."
+        "nothing. While a deep tune session holds the receiver the plan "
+        "cannot change: the response is a 409 problem detail with code "
+        "`deep_tune_active`."
     ),
     responses={
         404: {"model": ProblemDetail, "description": "Unknown frequency."},
         409: {
             "model": ProblemDetail,
-            "description": "The active set would not fit one tuner window.",
+            "description": (
+                "The active set would not fit one tuner window, or a deep "
+                "tune session has the receiver."
+            ),
         },
     },
 )
@@ -105,7 +123,9 @@ def activate_frequency(
     session: Annotated[Session, Depends(get_session)],
     settings: Annotated[Settings, Depends(get_settings)],
     capture: Annotated[CaptureController, Depends(get_capture)],
+    deep_tune: Annotated[DeepTuneManager, Depends(get_deep_tune)],
 ) -> FrequencyActionResponse:
+    _reject_while_deep_tune_active(deep_tune)
     freq = _get_frequency(session, freq_id)
     if freq.is_active:
         return FrequencyActionResponse(
@@ -149,16 +169,26 @@ def activate_frequency(
         "configuration, and restarts capture. Deactivating the last active "
         "frequency stops capture entirely (with a warning in the response) "
         "until something is activated again. Deactivating an already-inactive "
-        "frequency changes nothing."
+        "frequency changes nothing. While a deep tune session holds the "
+        "receiver the plan cannot change: the response is a 409 problem "
+        "detail with code `deep_tune_active`."
     ),
-    responses={404: {"model": ProblemDetail, "description": "Unknown frequency."}},
+    responses={
+        404: {"model": ProblemDetail, "description": "Unknown frequency."},
+        409: {
+            "model": ProblemDetail,
+            "description": "A deep tune session has the receiver.",
+        },
+    },
 )
 def deactivate_frequency(
     freq_id: int,
     session: Annotated[Session, Depends(get_session)],
     settings: Annotated[Settings, Depends(get_settings)],
     capture: Annotated[CaptureController, Depends(get_capture)],
+    deep_tune: Annotated[DeepTuneManager, Depends(get_deep_tune)],
 ) -> FrequencyActionResponse:
+    _reject_while_deep_tune_active(deep_tune)
     freq = _get_frequency(session, freq_id)
     if not freq.is_active:
         return FrequencyActionResponse(

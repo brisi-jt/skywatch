@@ -521,6 +521,47 @@ class TestDeepTuneAPI:
 
         live_client.post("/tuning/deep-tune/stop")
 
+    def test_frequency_activate_is_rejected_while_deep_tune_holds_the_receiver(
+        self, live_client, live_station, seed, session
+    ):
+        seed.frequency()
+        idle = seed.frequency("Guard", 121.5, is_active=False)
+        live_client.post("/tuning/deep-tune/start")
+        live_station.source.calls.clear()
+
+        response = live_client.post(f"/frequencies/{idle.id}/activate")
+
+        assert response.status_code == 409
+        assert response.headers["content-type"].startswith("application/problem+json")
+        assert response.json()["code"] == "deep_tune_active"
+        # the plan and capture were left alone
+        session.expire_all()
+        from skywatch.db.models import Frequency
+
+        assert session.get(Frequency, idle.id).is_active is False
+        assert live_station.source.calls == []
+
+        live_client.post("/tuning/deep-tune/stop")
+
+    def test_frequency_deactivate_is_rejected_while_deep_tune_holds_the_receiver(
+        self, live_client, live_station, seed, session
+    ):
+        active = seed.frequency()
+        live_client.post("/tuning/deep-tune/start")
+        live_station.source.calls.clear()
+
+        response = live_client.post(f"/frequencies/{active.id}/deactivate")
+
+        assert response.status_code == 409
+        assert response.json()["code"] == "deep_tune_active"
+        session.expire_all()
+        from skywatch.db.models import Frequency
+
+        assert session.get(Frequency, active.id).is_active is True
+        assert live_station.source.calls == []
+
+        live_client.post("/tuning/deep-tune/stop")
+
     def test_replay_station_has_nothing_to_tune(self, client, seed):
         seed.frequency()
         response = client.post("/tuning/deep-tune/start")

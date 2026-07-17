@@ -56,7 +56,7 @@
           "frequencies"
         ],
         "summary": "Start recording a frequency",
-        "description": "Adds the frequency to the active plan, rewrites the capture configuration, and restarts capture (a restart drops a few seconds of audio \u2014 there is no hot retune). In multichannel mode every active frequency must fit one 2.56 MHz tuner window; when the new set does not fit, the response is a 409 problem detail whose `offenders` lists the frequencies to deactivate and whose `suggested_centerfreq_mhz` is the centre frequency for the largest set that does fit. Switching the station to scan mode is the alternative escape hatch, at the cost of missing concurrent transmissions. Activating an already-active frequency changes nothing.",
+        "description": "Adds the frequency to the active plan, rewrites the capture configuration, and restarts capture (a restart drops a few seconds of audio \u2014 there is no hot retune). In multichannel mode every active frequency must fit one 2.56 MHz tuner window; when the new set does not fit, the response is a 409 problem detail whose `offenders` lists the frequencies to deactivate and whose `suggested_centerfreq_mhz` is the centre frequency for the largest set that does fit. Switching the station to scan mode is the alternative escape hatch, at the cost of missing concurrent transmissions. Activating an already-active frequency changes nothing. While a deep tune session holds the receiver the plan cannot change: the response is a 409 problem detail with code `deep_tune_active`.",
         "operationId": "activate_frequency_frequencies__freq_id__activate_post",
         "parameters": [
           {
@@ -91,7 +91,7 @@
             }
           },
           "409": {
-            "description": "The active set would not fit one tuner window.",
+            "description": "The active set would not fit one tuner window, or a deep tune session has the receiver.",
             "content": {
               "application/json": {
                 "schema": {
@@ -119,7 +119,7 @@
           "frequencies"
         ],
         "summary": "Stop recording a frequency",
-        "description": "Removes the frequency from the active plan, rewrites the capture configuration, and restarts capture. Deactivating the last active frequency stops capture entirely (with a warning in the response) until something is activated again. Deactivating an already-inactive frequency changes nothing.",
+        "description": "Removes the frequency from the active plan, rewrites the capture configuration, and restarts capture. Deactivating the last active frequency stops capture entirely (with a warning in the response) until something is activated again. Deactivating an already-inactive frequency changes nothing. While a deep tune session holds the receiver the plan cannot change: the response is a 409 problem detail with code `deep_tune_active`.",
         "operationId": "deactivate_frequency_frequencies__freq_id__deactivate_post",
         "parameters": [
           {
@@ -145,6 +145,16 @@
           },
           "404": {
             "description": "Unknown frequency.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A deep tune session has the receiver.",
             "content": {
               "application/json": {
                 "schema": {
