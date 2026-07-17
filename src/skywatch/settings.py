@@ -44,8 +44,12 @@ class CaptureSettings(BaseModel):
     # topology, where launchd owns the process).
     supervisor: Literal["subprocess", "launchctl"] = "subprocess"
     device_index: int = 0
+    # gain, squelch_snr_threshold, and ppm seed the station database on
+    # first start; after that the dashboard's tuning page owns them and
+    # these values are ignored.
     gain: float = 32.0
     squelch_snr_threshold: float = 12
+    ppm: int = 0
     sample_rate_msps: float = 2.56
     output_dir: Path = Path("data/recordings")
 

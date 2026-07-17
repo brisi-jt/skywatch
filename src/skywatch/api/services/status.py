@@ -27,7 +27,6 @@ from skywatch.api.schemas import (
     TraceProcess,
 )
 from skywatch.api.services.capture import CaptureController
-from skywatch.capture.conf_render import render_conf
 from skywatch.capture.validate import validate_frequencies
 from skywatch.db.enums import ApiProvider
 from skywatch.db.models import Frequency, Setting
@@ -35,6 +34,7 @@ from skywatch.pipeline import budget
 from skywatch.pipeline.retention import CAPTURE_PAUSED_KEY, check_disk
 from skywatch.pipeline.worker import queue_depths
 from skywatch.settings import Settings
+from skywatch.tuning import TuningService
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +55,7 @@ def station_name(session: Session) -> str | None:
 
 
 def _conf_state(
-    settings: Settings, capture: CaptureController, active: list[Frequency]
+    session: Session, settings: Settings, capture: CaptureController, active: list[Frequency]
 ) -> TraceConf:
     if settings.capture.source != "live":
         return TraceConf(state=ConfState.NOT_APPLICABLE, path=None)
@@ -66,7 +66,12 @@ def _conf_state(
         recordings_dir = settings.capture.output_dir
         if not recordings_dir.is_absolute():
             recordings_dir = recordings_dir.resolve()
-        expected = render_conf(active, settings.capture, recordings_dir=recordings_dir)
+        expected = TuningService(settings.capture).render(
+            session,
+            active,
+            recordings_dir=recordings_dir,
+            stats_filepath=capture.stats_filepath,
+        )
     except ValueError:
         # the database plan is not renderable (e.g. nothing active), so
         # whatever is on disk cannot reflect it
@@ -137,7 +142,7 @@ def build_status(
                 mode=settings.capture.mode,
                 channels=[TraceChannel(label=f.label, mhz=f.mhz) for f in active],
             ),
-            rendered_conf=_conf_state(settings, capture, active),
+            rendered_conf=_conf_state(session, settings, capture, active),
             process=TraceProcess(running=running, detail=detail),
         ),
         queues=queue_depths(session),

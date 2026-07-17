@@ -78,16 +78,21 @@ class TestLiveTrace:
 
     def test_conf_matches_db_intent(self, engine, tmp_path, monkeypatch, seed):
         def render(engine, settings, controller):
+            # mirror what LiveSDRSource.write_conf produces: the plan plus
+            # database tuning values and the stats file location
             from sqlmodel import Session, select
 
-            from skywatch.capture.conf_render import render_conf
             from skywatch.db.models import Frequency
+            from skywatch.tuning import TuningService
 
             with Session(engine) as s:
-                active = s.exec(select(Frequency).where(Frequency.is_active)).all()
-            return render_conf(
-                active, settings.capture, recordings_dir=settings.capture.output_dir.resolve()
-            )
+                active = list(s.exec(select(Frequency).where(Frequency.is_active)).all())
+                return TuningService(settings.capture).render(
+                    s,
+                    active,
+                    recordings_dir=settings.capture.output_dir.resolve(),
+                    stats_filepath=controller.stats_filepath,
+                )
 
         status = self._live_status(engine, tmp_path, monkeypatch, seed, write_conf=render)
         assert status.trace.rendered_conf.state == "match"

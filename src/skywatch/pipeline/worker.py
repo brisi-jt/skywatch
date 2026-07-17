@@ -558,15 +558,19 @@ def build_worker(settings: Settings, engine=None) -> PipelineWorker:
     """Wire a worker from settings: providers, watcher, and capture source."""
     from skywatch.capture.live import LiveSDRSource
     from skywatch.capture.replay import ReplaySource
+    from skywatch.capture.stats import default_stats_path
     from skywatch.capture.watcher import RecordingWatcher
     from skywatch.providers.asr import create_asr_engine
     from skywatch.providers.flightdata.airlines import AirlineDirectory
     from skywatch.providers.flightdata.opensky import OpenSkyClient, OpenSkyEnricher
     from skywatch.providers.llm import build_classifier_chain
+    from skywatch.tuning import TuningService
 
     if engine is None:
         engine = create_db_engine(default_db_path(settings.data_root))
     data_root = settings.data_root.resolve()
+    with Session(engine) as session:
+        TuningService(settings.capture).ensure_seeded(session)
     recordings_dir = settings.capture.output_dir
     if not recordings_dir.is_absolute():
         recordings_dir = recordings_dir.resolve()
@@ -614,6 +618,7 @@ def build_worker(settings: Settings, engine=None) -> PipelineWorker:
             settings.capture,
             conf_path=data_root / "rtl_airband.conf",
             recordings_dir=recordings_dir,
+            stats_filepath=default_stats_path(data_root),
             supervisor=settings.capture.supervisor,
             launchd_domain=f"gui/{os.getuid()}",
         )

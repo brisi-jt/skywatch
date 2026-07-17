@@ -23,9 +23,15 @@ capture:
   # service installed by scripts/bootstrap.sh (deployed stations).
   supervisor: subprocess
   device_index: 0
-  # RTL-SDR tuner gain in dB. Auto-gain is not available; tune manually per site.
+  # The three tuning values below (gain, squelch_snr_threshold, ppm) seed
+  # the station database the first time the station starts. After that the
+  # dashboard's tuning page owns them, and editing them here has no effect.
+  # RTL-SDR tuner gain in dB. Auto-gain is not available; tune per site.
   gain: 32.0
+  # Squelch opens when a transmission rises this many dB above the noise floor.
   squelch_snr_threshold: 12
+  # Frequency correction for the dongle's crystal offset, in parts per million.
+  ppm: 0
   sample_rate_msps: 2.56
   output_dir: ./data/recordings
 

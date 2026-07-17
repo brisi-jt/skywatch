@@ -14,6 +14,7 @@ from pathlib import Path
 from sqlalchemy import Engine
 
 from skywatch.capture.source import CaptureSource, SourceStatus
+from skywatch.capture.stats import default_stats_path
 from skywatch.settings import Settings
 
 logger = logging.getLogger(__name__)
@@ -31,6 +32,7 @@ class CaptureController:
         self._settings = settings
         data_root = settings.data_root
         self.conf_path = Path(conf_path) if conf_path else data_root / "rtl_airband.conf"
+        self.stats_filepath = default_stats_path(data_root)
         if source is None and settings.capture.source == "live":
             from skywatch.capture.live import LiveSDRSource
 
@@ -42,6 +44,7 @@ class CaptureController:
                 settings.capture,
                 conf_path=self.conf_path,
                 recordings_dir=recordings_dir,
+                stats_filepath=self.stats_filepath,
                 supervisor=settings.capture.supervisor,
                 launchd_domain=f"gui/{os.getuid()}",
             )

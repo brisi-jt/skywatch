@@ -22,11 +22,11 @@ from typing import Literal, Protocol
 from sqlalchemy import Engine
 from sqlmodel import select
 
-from skywatch.capture.conf_render import render_conf
 from skywatch.capture.source import SourceStatus
 from skywatch.db.engine import session_scope
 from skywatch.db.models import Frequency
 from skywatch.settings import CaptureSettings
+from skywatch.tuning import TuningService
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +77,7 @@ class LiveSDRSource:
         *,
         conf_path: Path,
         recordings_dir: Path,
+        stats_filepath: Path | None = None,
         supervisor: Literal["subprocess", "launchctl"] = "subprocess",
         launchd_label: str = DEFAULT_LAUNCHD_LABEL,
         launchd_domain: str = "system",
@@ -89,6 +90,7 @@ class LiveSDRSource:
         self._capture = capture
         self._conf_path = Path(conf_path)
         self._recordings_dir = Path(recordings_dir)
+        self._stats_filepath = Path(stats_filepath) if stats_filepath else None
         self._supervisor = supervisor
         self._launchd_target = f"{launchd_domain}/{launchd_label}"
         self._rtl_airband_bin = rtl_airband_bin
@@ -97,17 +99,18 @@ class LiveSDRSource:
         self._spawn = spawn
         self._process: _Process | None = None
 
-    def _active_frequencies(self) -> list[Frequency]:
-        with session_scope(self._engine) as session:
-            rows = session.exec(select(Frequency).where(Frequency.is_active)).all()
-            session.expunge_all()
-        return list(rows)
-
     def write_conf(self) -> str:
-        """Render the conf from the active plan and write it into place."""
-        text = render_conf(
-            self._active_frequencies(), self._capture, recordings_dir=self._recordings_dir
-        )
+        """Render the conf from the active plan and applied tuning values."""
+        tuning = TuningService(self._capture)
+        with session_scope(self._engine) as session:
+            rows = list(session.exec(select(Frequency).where(Frequency.is_active)).all())
+            text = tuning.render(
+                session,
+                rows,
+                recordings_dir=self._recordings_dir,
+                stats_filepath=self._stats_filepath,
+            )
+            session.expunge_all()
         self._conf_path.parent.mkdir(parents=True, exist_ok=True)
         self._conf_path.write_text(text)
         logger.info("wrote %s", self._conf_path)
@@ -126,6 +129,9 @@ class LiveSDRSource:
             )
         self.write_conf()
         self._recordings_dir.mkdir(parents=True, exist_ok=True)
+        if self._stats_filepath is not None:
+            # rtl_airband writes the statistics file but not its directory
+            self._stats_filepath.parent.mkdir(parents=True, exist_ok=True)
         if self._supervisor == "launchctl":
             # -k restarts the service if it is already running, so a config
             # change and a cold start are the same operation.

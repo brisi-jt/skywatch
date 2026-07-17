@@ -38,6 +38,8 @@ class APIErrorCode(StrEnum):
     WINDOW_CONFLICT = "window_conflict"
     UNKNOWN_SETTING_KEY = "unknown_setting_key"
     INVALID_SETTING_VALUE = "invalid_setting_value"
+    TUNING_INVALID_VALUE = "tuning_invalid_value"
+    TUNING_UNKNOWN_FREQUENCY = "tuning_unknown_frequency"
     RECORDING_NOT_CLASSIFIABLE = "recording_not_classifiable"
     METHOD_NOT_ALLOWED = "method_not_allowed"
     INTERNAL_ERROR = "internal_error"

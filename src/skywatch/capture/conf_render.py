@@ -12,7 +12,7 @@ Output choices baked in here (and relied on by the watcher):
 - ``dated_subdirectories`` so clips nest under ``YYYY/MM/DD``.
 """
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from skywatch.capture.filenames import slugify_label
@@ -55,8 +55,16 @@ def render_conf(
     capture: CaptureSettings,
     *,
     recordings_dir: Path,
+    squelch_overrides: Mapping[int, float] | None = None,
+    stats_filepath: Path | None = None,
 ) -> str:
     """Render the full rtl_airband.conf for the active frequency set.
+
+    ``squelch_overrides`` maps frequency row ids to per-channel squelch SNR
+    thresholds; channels without an entry use the station default. Scan mode
+    has a single shared channel, so only the default applies there.
+    ``stats_filepath`` enables rtl_airband's statistics file, the source for
+    the dashboard's live meters.
 
     Raises ``ValueError`` when the set is invalid for the configured mode —
     callers should have validated already; this is the last line of defence
@@ -66,10 +74,17 @@ def render_conf(
     if not result.ok:
         raise ValueError("; ".join(result.errors))
 
+    overrides = dict(squelch_overrides or {})
     ordered = sorted(frequencies, key=lambda f: f.mhz)
-    lines = [HEADER, "devices:", "(", "  {", '    type = "rtlsdr";']
+    lines = [HEADER]
+    if stats_filepath is not None:
+        lines.append(f'stats_filepath = "{Path(stats_filepath).as_posix()}";')
+    lines.extend(["devices:", "(", "  {", '    type = "rtlsdr";'])
     lines.append(f"    index = {capture.device_index};")
     lines.append(f"    gain = {_num(capture.gain)};")
+    if capture.ppm:
+        # frequency correction for the dongle's crystal offset, integer ppm
+        lines.append(f"    correction = {capture.ppm};")
     lines.append(f'    mode = "{capture.mode}";')
     if capture.mode == "multichannel":
         assert result.suggested_centerfreq_mhz is not None
@@ -81,11 +96,12 @@ def render_conf(
     if capture.mode == "multichannel":
         blocks = []
         for channel in ordered:
+            squelch = overrides.get(channel.id, capture.squelch_snr_threshold)
             block = [
                 "      {",
                 f"        freq = {_num(channel.mhz)};",
                 f'        modulation = "{channel.mode.value}";',
-                f"        squelch_snr_threshold = {_num(capture.squelch_snr_threshold)};",
+                f"        squelch_snr_threshold = {_num(squelch)};",
                 *_output_block(recordings_dir, slugify_label(channel.label), "        "),
                 "      }",
             ]

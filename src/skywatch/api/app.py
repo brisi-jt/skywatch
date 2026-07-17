@@ -15,6 +15,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import Engine
+from sqlalchemy.exc import OperationalError
 from sqlmodel import Session
 
 from skywatch.api.errors import register_error_handlers
@@ -26,6 +27,7 @@ from skywatch.api.routes import (
     recordings,
     station_settings,
     status,
+    tuning,
 )
 from skywatch.api.services.capture import CaptureController
 from skywatch.api.services.recordings import build_summaries
@@ -34,6 +36,7 @@ from skywatch.api.ws import ChangePoller, StreamHub, run_poller
 from skywatch.db.engine import create_db_engine, default_db_path
 from skywatch.db.models import Recording
 from skywatch.settings import Settings
+from skywatch.tuning import TuningService
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +100,14 @@ def create_app(
     content_dir = Path(content_dir) if content_dir else _default_content_dir()
     static_dir = Path(static_dir) if static_dir else _default_static_dir()
 
+    try:
+        with Session(engine) as session:
+            TuningService(settings.capture).ensure_seeded(session)
+    except OperationalError:
+        # the schema is not migrated yet (fresh checkout, schema export);
+        # seeding happens on the first start after `make migrate`
+        logger.warning("tuning values not seeded: database schema missing")
+
     hub = StreamHub()
 
     def _recording_payload(session: Session, recording: Recording) -> dict:
@@ -152,6 +163,7 @@ def create_app(
     app.include_router(digest.router)
     app.include_router(content.router)
     app.include_router(station_settings.router)
+    app.include_router(tuning.router)
 
     @app.websocket("/stream")
     async def stream(websocket: WebSocket) -> None:

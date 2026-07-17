@@ -837,6 +837,114 @@
           }
         }
       }
+    },
+    "/tuning": {
+      "get": {
+        "tags": [
+          "tuning"
+        ],
+        "summary": "Read the station's tuning state",
+        "description": "The tuning levers as currently applied \u2014 tuner gain, the squelch threshold (station default plus any per-frequency overrides), and the frequency correction in ppm \u2014 alongside the saved baseline (null until one is saved), the shipped factory values, and the tuner's real gain steps. Gain controls should offer exactly the listed steps: the hardware cannot sit between them. `deep_tune.active` reports whether an exclusive off-air spectrum session is running.",
+        "operationId": "get_tuning_tuning_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TuningResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tuning/apply": {
+      "post": {
+        "tags": [
+          "tuning"
+        ],
+        "summary": "Apply a new set of tuning values",
+        "description": "Persists a complete set of tuning values, rewrites the capture configuration, and restarts capture \u2014 the station is off-air for around five seconds. The request is the full value set, not a delta: send the current value for levers that are not changing, and omit a per-frequency override to remove it. Gain is snapped to the tuner's nearest real step. When any value fails validation, nothing is applied and the 422 problem detail names the offender.",
+        "operationId": "post_apply_tuning_apply_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TuningApplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TuningApplyResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A value is out of range or names an unknown frequency.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tuning/baseline": {
+      "post": {
+        "tags": [
+          "tuning"
+        ],
+        "summary": "Save the applied values as the station baseline",
+        "description": "Snapshots the currently applied tuning values as the station's baseline \u2014 the values each lever's reset control returns to. Replaces any previously saved baseline.",
+        "operationId": "post_baseline_tuning_baseline_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TuningResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tuning/meters": {
+      "get": {
+        "tags": [
+          "tuning"
+        ],
+        "summary": "Read the live channel meters",
+        "description": "Per-frequency readings from the capture process's statistics file (rewritten every 15 seconds while capture runs) merged with recording activity: signal and noise in dBFS, the derived signal-to-noise ratio, squelch opens, clips in the last hour, when each frequency last heard a transmission, and clip counts since tuning was last applied. When `stats.present` is false the file has not been written yet \u2014 the station may still be starting \u2014 and when `stats.stale` is true the numbers are old and meters should show a paused state rather than live values.",
+        "operationId": "get_meters_tuning_meters_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetersResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -854,6 +962,8 @@
           "window_conflict",
           "unknown_setting_key",
           "invalid_setting_value",
+          "tuning_invalid_value",
+          "tuning_unknown_frequency",
           "recording_not_classifiable",
           "method_not_allowed",
           "internal_error"
@@ -978,6 +1088,41 @@
         "title": "AircraftMatchResource",
         "description": "A probable aircraft near the station when the clip was captured.\n\nCandidates are heuristic: they come from position data around the\nreceiver at capture time, not from decoding the transmission. Present\nthem as 'probably/possibly', never as fact."
       },
+      "AppliedTuning": {
+        "properties": {
+          "gain_db": {
+            "type": "number",
+            "title": "Gain Db",
+            "description": "RTL-SDR tuner gain; always one of the real gain steps."
+          },
+          "squelch_default_snr_db": {
+            "type": "number",
+            "title": "Squelch Default Snr Db",
+            "description": "Station-wide squelch threshold: recording starts when a signal rises this many dB above the channel's noise floor."
+          },
+          "ppm": {
+            "type": "integer",
+            "title": "Ppm",
+            "description": "Frequency correction for the dongle's crystal offset, in parts per million."
+          },
+          "squelch_overrides": {
+            "items": {
+              "$ref": "#/components/schemas/SquelchOverride"
+            },
+            "type": "array",
+            "title": "Squelch Overrides"
+          }
+        },
+        "type": "object",
+        "required": [
+          "gain_db",
+          "squelch_default_snr_db",
+          "ppm",
+          "squelch_overrides"
+        ],
+        "title": "AppliedTuning",
+        "description": "One complete set of tuning values."
+      },
       "AsrEngine": {
         "type": "string",
         "enum": [
@@ -1100,6 +1245,138 @@
         "title": "CaptureTrace",
         "description": "The three-step capture chain: database intent, rendered config file,\nrunning process. Any mismatch between steps points at where a frequency\nchange stalled."
       },
+      "ChannelMeter": {
+        "properties": {
+          "freq_id": {
+            "type": "integer",
+            "title": "Freq Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "mhz": {
+            "type": "number",
+            "title": "Mhz"
+          },
+          "signal_dbfs": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signal Dbfs",
+            "description": "Signal level relative to full scale; null while no stats are available."
+          },
+          "noise_dbfs": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Noise Dbfs"
+          },
+          "snr_db": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snr Db",
+            "description": "Signal above the noise floor \u2014 the number squelch compares against."
+          },
+          "squelch_level_dbfs": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Squelch Level Dbfs",
+            "description": "The level at which squelch currently opens on this channel."
+          },
+          "squelch_open_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Squelch Open Count",
+            "description": "Times squelch has opened since capture started."
+          },
+          "flappy_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flappy Count",
+            "description": "Times squelch opened and closed in quick succession \u2014 a high count suggests the threshold sits too close to the noise floor."
+          },
+          "clips_last_hour": {
+            "type": "integer",
+            "title": "Clips Last Hour"
+          },
+          "last_heard_utc": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Heard Utc"
+          },
+          "clips_since_apply": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clips Since Apply",
+            "description": "Clips recorded since tuning was last applied; null if never applied."
+          }
+        },
+        "type": "object",
+        "required": [
+          "freq_id",
+          "label",
+          "mhz",
+          "signal_dbfs",
+          "noise_dbfs",
+          "snr_db",
+          "squelch_level_dbfs",
+          "squelch_open_count",
+          "flappy_count",
+          "clips_last_hour",
+          "last_heard_utc",
+          "clips_since_apply"
+        ],
+        "title": "ChannelMeter",
+        "description": "One frequency's live readings and recent activity."
+      },
       "ClassificationCategory": {
         "type": "string",
         "enum": [
@@ -1217,6 +1494,20 @@
         "title": "ConfState",
         "description": "How the rtl_airband config file on disk relates to the database plan."
       },
+      "DeepTuneState": {
+        "properties": {
+          "active": {
+            "type": "boolean",
+            "title": "Active"
+          }
+        },
+        "type": "object",
+        "required": [
+          "active"
+        ],
+        "title": "DeepTuneState",
+        "description": "Whether an exclusive off-air spectrum session is running."
+      },
       "DigestResponse": {
         "properties": {
           "_links": {
@@ -1324,6 +1615,30 @@
         ],
         "title": "DocumentResponse",
         "description": "A station document as raw Markdown for the client to render."
+      },
+      "FactoryTuning": {
+        "properties": {
+          "gain_db": {
+            "type": "number",
+            "title": "Gain Db"
+          },
+          "squelch_default_snr_db": {
+            "type": "number",
+            "title": "Squelch Default Snr Db"
+          },
+          "ppm": {
+            "type": "integer",
+            "title": "Ppm"
+          }
+        },
+        "type": "object",
+        "required": [
+          "gain_db",
+          "squelch_default_snr_db",
+          "ppm"
+        ],
+        "title": "FactoryTuning",
+        "description": "The values the station shipped with; the reset of last resort."
       },
       "FeedbackCounts": {
         "properties": {
@@ -1634,6 +1949,46 @@
         ],
         "title": "Link",
         "description": "One HAL link: a relative URL on this API."
+      },
+      "MetersResponse": {
+        "properties": {
+          "_links": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "type": "object",
+            "title": "Links",
+            "description": "HAL links: self plus related resources and the actions currently available on this resource."
+          },
+          "stats": {
+            "$ref": "#/components/schemas/StatsFileState"
+          },
+          "channels": {
+            "items": {
+              "$ref": "#/components/schemas/ChannelMeter"
+            },
+            "type": "array",
+            "title": "Channels"
+          },
+          "since_last_apply": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SinceLastApply"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "stats",
+          "channels",
+          "since_last_apply"
+        ],
+        "title": "MetersResponse",
+        "description": "Live meter readings for every active frequency."
       },
       "ProblemDetail": {
         "properties": {
@@ -2047,6 +2402,107 @@
         "title": "SettingsResponse",
         "description": "The station's owner-editable settings."
       },
+      "SinceLastApply": {
+        "properties": {
+          "applied_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Applied At"
+          },
+          "total_clips": {
+            "type": "integer",
+            "title": "Total Clips"
+          }
+        },
+        "type": "object",
+        "required": [
+          "applied_at",
+          "total_clips"
+        ],
+        "title": "SinceLastApply",
+        "description": "Activity since the most recent tuning apply, for before/after comparison."
+      },
+      "SquelchOverride": {
+        "properties": {
+          "freq_id": {
+            "type": "integer",
+            "title": "Freq Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "mhz": {
+            "type": "number",
+            "title": "Mhz"
+          },
+          "squelch_snr_db": {
+            "type": "number",
+            "title": "Squelch Snr Db"
+          }
+        },
+        "type": "object",
+        "required": [
+          "freq_id",
+          "label",
+          "mhz",
+          "squelch_snr_db"
+        ],
+        "title": "SquelchOverride",
+        "description": "A per-frequency squelch threshold that beats the station default."
+      },
+      "SquelchOverrideRequest": {
+        "properties": {
+          "freq_id": {
+            "type": "integer",
+            "title": "Freq Id"
+          },
+          "squelch_snr_db": {
+            "type": "number",
+            "title": "Squelch Snr Db"
+          }
+        },
+        "type": "object",
+        "required": [
+          "freq_id",
+          "squelch_snr_db"
+        ],
+        "title": "SquelchOverrideRequest"
+      },
+      "StatsFileState": {
+        "properties": {
+          "present": {
+            "type": "boolean",
+            "title": "Present",
+            "description": "False until capture has written the file at least once."
+          },
+          "stale": {
+            "type": "boolean",
+            "title": "Stale",
+            "description": "True when the file has not been rewritten recently; the numbers describe a process that is no longer reporting, so meters should show a paused state."
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "present",
+          "stale",
+          "updated_at"
+        ],
+        "title": "StatsFileState",
+        "description": "Freshness of the capture process's statistics file."
+      },
       "StatusBudgets": {
         "properties": {
           "llm": {
@@ -2276,6 +2732,182 @@
         ],
         "title": "TranscriptResource",
         "description": "Speech-to-text output with engine provenance."
+      },
+      "TuningApplyRequest": {
+        "properties": {
+          "gain_db": {
+            "type": "number",
+            "title": "Gain Db"
+          },
+          "squelch_default_snr_db": {
+            "type": "number",
+            "title": "Squelch Default Snr Db"
+          },
+          "ppm": {
+            "type": "integer",
+            "title": "Ppm"
+          },
+          "squelch_overrides": {
+            "items": {
+              "$ref": "#/components/schemas/SquelchOverrideRequest"
+            },
+            "type": "array",
+            "title": "Squelch Overrides",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "gain_db",
+          "squelch_default_snr_db",
+          "ppm"
+        ],
+        "title": "TuningApplyRequest",
+        "description": "A complete set of tuning values \u2014 not a delta.\n\nSend the current value for any lever that is not changing; a\nper-frequency override omitted here is removed."
+      },
+      "TuningApplyResponse": {
+        "properties": {
+          "_links": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "type": "object",
+            "title": "Links",
+            "description": "HAL links: self plus related resources and the actions currently available on this resource."
+          },
+          "applied": {
+            "$ref": "#/components/schemas/AppliedTuning",
+            "description": "The values capture is currently running with."
+          },
+          "baseline": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AppliedTuning"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The saved station defaults that per-lever reset returns to, or null when none have been saved yet (factory values apply)."
+          },
+          "factory": {
+            "$ref": "#/components/schemas/FactoryTuning"
+          },
+          "gain_steps_db": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Gain Steps Db",
+            "description": "The tuner's real gain ladder. Gain controls should offer exactly these values; anything else is snapped to the nearest step."
+          },
+          "last_applied_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Applied At",
+            "description": "When tuning values were last applied, or null if never."
+          },
+          "deep_tune": {
+            "$ref": "#/components/schemas/DeepTuneState"
+          },
+          "capture_restarted": {
+            "type": "boolean",
+            "title": "Capture Restarted"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings",
+            "description": "Non-fatal notes, e.g. a capture restart that could not complete."
+          }
+        },
+        "type": "object",
+        "required": [
+          "applied",
+          "baseline",
+          "factory",
+          "gain_steps_db",
+          "last_applied_at",
+          "deep_tune",
+          "capture_restarted",
+          "warnings"
+        ],
+        "title": "TuningApplyResponse",
+        "description": "The tuning state after an apply, plus how the restart went."
+      },
+      "TuningResponse": {
+        "properties": {
+          "_links": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "type": "object",
+            "title": "Links",
+            "description": "HAL links: self plus related resources and the actions currently available on this resource."
+          },
+          "applied": {
+            "$ref": "#/components/schemas/AppliedTuning",
+            "description": "The values capture is currently running with."
+          },
+          "baseline": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AppliedTuning"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The saved station defaults that per-lever reset returns to, or null when none have been saved yet (factory values apply)."
+          },
+          "factory": {
+            "$ref": "#/components/schemas/FactoryTuning"
+          },
+          "gain_steps_db": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Gain Steps Db",
+            "description": "The tuner's real gain ladder. Gain controls should offer exactly these values; anything else is snapped to the nearest step."
+          },
+          "last_applied_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Applied At",
+            "description": "When tuning values were last applied, or null if never."
+          },
+          "deep_tune": {
+            "$ref": "#/components/schemas/DeepTuneState"
+          }
+        },
+        "type": "object",
+        "required": [
+          "applied",
+          "baseline",
+          "factory",
+          "gain_steps_db",
+          "last_applied_at",
+          "deep_tune"
+        ],
+        "title": "TuningResponse",
+        "description": "The tuning bench's full state."
       },
       "ValidationError": {
         "properties": {

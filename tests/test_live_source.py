@@ -7,7 +7,7 @@ injected runners, so these tests never touch real hardware or launchd.
 from dataclasses import dataclass, field
 
 import pytest
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from skywatch.capture.live import CommandResult, DongleNotFoundError, LiveSDRSource
 from skywatch.db.enums import FrequencyCategory
@@ -117,6 +117,37 @@ class TestConfRendering:
         source = make_source(engine, tmp_path)
         with pytest.raises(ValueError):
             source.write_conf()
+
+    def test_write_conf_uses_database_tuning_values(self, seeded_engine, tmp_path):
+        from skywatch.db.models import Setting
+
+        with Session(seeded_engine) as session:
+            guard = session.exec(select(Frequency).where(Frequency.is_active)).one()
+            session.add(Setting(key="tuning.gain", value="38.6"))
+            session.add(Setting(key="tuning.squelch_default", value="10"))
+            session.add(Setting(key="tuning.ppm", value="-2"))
+            session.add(Setting(key=f"tuning.squelch.{guard.id}", value="7.5"))
+            session.commit()
+
+        text = make_source(seeded_engine, tmp_path).write_conf()
+
+        assert "gain = 38.6;" in text
+        assert "correction = -2;" in text
+        assert "squelch_snr_threshold = 7.5;" in text  # the per-channel override
+
+    def test_write_conf_includes_the_stats_file_location(self, seeded_engine, tmp_path):
+        source = LiveSDRSource(
+            seeded_engine,
+            CaptureSettings(mode="multichannel"),
+            conf_path=tmp_path / "rtl_airband.conf",
+            recordings_dir=tmp_path / "recordings",
+            stats_filepath=tmp_path / "stats" / "rtl_airband_stats.txt",
+            runner=FakeRunner({"rtl_test": CommandResult(0, "", RTL_TEST_FOUND)}),
+            spawn=FakeProc,
+        )
+        text = source.write_conf()
+        stats_path = (tmp_path / "stats" / "rtl_airband_stats.txt").as_posix()
+        assert f'stats_filepath = "{stats_path}";' in text
 
 
 class TestSubprocessSupervision:

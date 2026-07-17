@@ -376,6 +376,159 @@ class DigestResponse(HALModel):
     )
 
 
+# -- tuning -------------------------------------------------------------------------
+
+
+class SquelchOverride(BaseModel):
+    """A per-frequency squelch threshold that beats the station default."""
+
+    freq_id: int
+    label: str
+    mhz: float
+    squelch_snr_db: float
+
+
+class AppliedTuning(BaseModel):
+    """One complete set of tuning values."""
+
+    gain_db: float = Field(description="RTL-SDR tuner gain; always one of the real gain steps.")
+    squelch_default_snr_db: float = Field(
+        description=(
+            "Station-wide squelch threshold: recording starts when a signal "
+            "rises this many dB above the channel's noise floor."
+        )
+    )
+    ppm: int = Field(
+        description="Frequency correction for the dongle's crystal offset, in parts per million."
+    )
+    squelch_overrides: list[SquelchOverride]
+
+
+class FactoryTuning(BaseModel):
+    """The values the station shipped with; the reset of last resort."""
+
+    gain_db: float
+    squelch_default_snr_db: float
+    ppm: int
+
+
+class DeepTuneState(BaseModel):
+    """Whether an exclusive off-air spectrum session is running."""
+
+    active: bool
+
+
+class TuningResponse(HALModel):
+    """The tuning bench's full state."""
+
+    applied: AppliedTuning = Field(description="The values capture is currently running with.")
+    baseline: AppliedTuning | None = Field(
+        description=(
+            "The saved station defaults that per-lever reset returns to, or "
+            "null when none have been saved yet (factory values apply)."
+        )
+    )
+    factory: FactoryTuning
+    gain_steps_db: list[float] = Field(
+        description=(
+            "The tuner's real gain ladder. Gain controls should offer exactly "
+            "these values; anything else is snapped to the nearest step."
+        )
+    )
+    last_applied_at: datetime | None = Field(
+        description="When tuning values were last applied, or null if never."
+    )
+    deep_tune: DeepTuneState
+
+
+class SquelchOverrideRequest(BaseModel):
+    freq_id: int
+    squelch_snr_db: float
+
+
+class TuningApplyRequest(BaseModel):
+    """A complete set of tuning values — not a delta.
+
+    Send the current value for any lever that is not changing; a
+    per-frequency override omitted here is removed.
+    """
+
+    gain_db: float
+    squelch_default_snr_db: float
+    ppm: int
+    squelch_overrides: list[SquelchOverrideRequest] = []
+
+
+class TuningApplyResponse(TuningResponse):
+    """The tuning state after an apply, plus how the restart went."""
+
+    capture_restarted: bool
+    warnings: list[str] = Field(
+        description="Non-fatal notes, e.g. a capture restart that could not complete."
+    )
+
+
+class StatsFileState(BaseModel):
+    """Freshness of the capture process's statistics file."""
+
+    present: bool = Field(description="False until capture has written the file at least once.")
+    stale: bool = Field(
+        description=(
+            "True when the file has not been rewritten recently; the numbers "
+            "describe a process that is no longer reporting, so meters should "
+            "show a paused state."
+        )
+    )
+    updated_at: datetime | None
+
+
+class SinceLastApply(BaseModel):
+    """Activity since the most recent tuning apply, for before/after comparison."""
+
+    applied_at: datetime
+    total_clips: int
+
+
+class ChannelMeter(BaseModel):
+    """One frequency's live readings and recent activity."""
+
+    freq_id: int
+    label: str
+    mhz: float
+    signal_dbfs: float | None = Field(
+        description="Signal level relative to full scale; null while no stats are available."
+    )
+    noise_dbfs: float | None
+    snr_db: float | None = Field(
+        description="Signal above the noise floor — the number squelch compares against."
+    )
+    squelch_level_dbfs: float | None = Field(
+        description="The level at which squelch currently opens on this channel."
+    )
+    squelch_open_count: int | None = Field(
+        description="Times squelch has opened since capture started."
+    )
+    flappy_count: int | None = Field(
+        description=(
+            "Times squelch opened and closed in quick succession — a high "
+            "count suggests the threshold sits too close to the noise floor."
+        )
+    )
+    clips_last_hour: int
+    last_heard_utc: datetime | None
+    clips_since_apply: int | None = Field(
+        description="Clips recorded since tuning was last applied; null if never applied."
+    )
+
+
+class MetersResponse(HALModel):
+    """Live meter readings for every active frequency."""
+
+    stats: StatsFileState
+    channels: list[ChannelMeter]
+    since_last_apply: SinceLastApply | None
+
+
 # -- settings & docs ----------------------------------------------------------------
 
 
