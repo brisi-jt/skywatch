@@ -12,13 +12,20 @@ from skywatch.api.errors import APIErrorCode, ProblemException
 from skywatch.api.schemas import Link, SettingsResponse
 from skywatch.db.models import Setting
 
-EDITABLE_KEYS = ("station_name",)
+WALKTHROUGH_KEY = "tuning.walkthrough_done"
+
+EDITABLE_KEYS = ("station_name", WALKTHROUGH_KEY)
+
+# Keys that hold a boolean, stored as the strings "true" / "false".
+BOOLEAN_KEYS = (WALKTHROUGH_KEY,)
 
 
 def settings_view(session: Session) -> SettingsResponse:
     row = session.get(Setting, "station_name")
+    walkthrough = session.get(Setting, WALKTHROUGH_KEY)
     return SettingsResponse(
         station_name=row.value if row is not None else None,
+        tuning_walkthrough_done=walkthrough is not None and walkthrough.value == "true",
         links={"self": Link(href="/settings")},
     )
 
@@ -39,6 +46,12 @@ def apply_patch(session: Session, payload: dict[str, str]) -> SettingsResponse:
                 status.HTTP_422_UNPROCESSABLE_CONTENT,
                 APIErrorCode.INVALID_SETTING_VALUE,
                 f"{key} must not be blank",
+            )
+        if key in BOOLEAN_KEYS and cleaned not in ("true", "false"):
+            raise ProblemException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                APIErrorCode.INVALID_SETTING_VALUE,
+                f"{key} must be 'true' or 'false'",
             )
         row = session.get(Setting, key)
         if row is None:

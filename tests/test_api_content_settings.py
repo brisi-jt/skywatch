@@ -71,6 +71,26 @@ class TestSettings:
         assert response.status_code == 422
         assert response.json()["code"] == "invalid_setting_value"
 
+    def test_walkthrough_flag_defaults_false(self, client):
+        assert client.get("/settings").json()["tuning_walkthrough_done"] is False
+
+    def test_walkthrough_flag_round_trips(self, client):
+        response = client.patch("/settings", json={"tuning.walkthrough_done": "true"})
+
+        assert response.status_code == 200
+        assert response.json()["tuning_walkthrough_done"] is True
+        assert client.get("/settings").json()["tuning_walkthrough_done"] is True
+
+        client.patch("/settings", json={"tuning.walkthrough_done": "false"})
+        assert client.get("/settings").json()["tuning_walkthrough_done"] is False
+
+    def test_walkthrough_flag_rejects_non_boolean_values(self, client):
+        response = client.patch("/settings", json={"tuning.walkthrough_done": "maybe"})
+
+        assert response.status_code == 422
+        assert response.json()["code"] == "invalid_setting_value"
+        assert client.get("/settings").json()["tuning_walkthrough_done"] is False
+
 
 class TestAppPlumbing:
     def test_unknown_path_is_a_problem_404(self, client):

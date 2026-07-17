@@ -567,6 +567,11 @@ class SettingsResponse(HALModel):
     """The station's owner-editable settings."""
 
     station_name: str | None
+    tuning_walkthrough_done: bool = Field(
+        description=(
+            "Whether the tuning bench's one-time introductory tour has been completed or dismissed."
+        ),
+    )
 
 
 class DocumentResponse(HALModel):
