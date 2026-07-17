@@ -70,6 +70,15 @@ class CaptureController:
             return False, f"capture restart failed: {exc}"
         return True, None
 
+    def stop(self) -> None:
+        """Stop capture and leave it stopped.
+
+        Deep tune borrows the receiver this way; the session's exit path
+        calls :meth:`restart` to put the station back on air.
+        """
+        if self.source is not None:
+            self.source.stop()
+
     def status(self) -> SourceStatus | None:
         if self.source is None:
             return None

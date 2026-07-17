@@ -39,6 +39,10 @@ class StreamHub:
     def __init__(self) -> None:
         self._clients: list[WebSocket] = []
 
+    @property
+    def client_count(self) -> int:
+        return len(self._clients)
+
     async def connect(self, websocket: WebSocket) -> None:
         await websocket.accept()
         self._clients.append(websocket)

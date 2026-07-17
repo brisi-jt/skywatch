@@ -276,6 +276,13 @@ class CaptureStatus(BaseModel):
     centerfreq_mhz: float | None = Field(
         description="Tuner centre frequency for the active plan; null in scan mode."
     )
+    deep_tune_active: bool = Field(
+        default=False,
+        description=(
+            "True while a deep tune session has the receiver: capture is "
+            "deliberately off-air, not failed."
+        ),
+    )
 
 
 class TraceChannel(BaseModel):
@@ -416,6 +423,30 @@ class DeepTuneState(BaseModel):
     """Whether an exclusive off-air spectrum session is running."""
 
     active: bool
+    started_at: datetime | None = Field(
+        default=None, description="When the session began; null when inactive."
+    )
+    seconds_remaining_before_timeout: float | None = Field(
+        default=None,
+        description=(
+            "Seconds until the session ends itself for lack of interaction; "
+            "null when inactive. Pings reset the countdown."
+        ),
+    )
+
+
+class DeepTuneSessionResponse(HALModel):
+    """The deep tune session as the start, stop, and ping endpoints report it."""
+
+    deep_tune: DeepTuneState
+    center_mhz: float | None = Field(
+        default=None,
+        description="Centre of the spectrum window being streamed; null when inactive.",
+    )
+    span_mhz: float | None = Field(
+        default=None,
+        description="Full width of the spectrum window in MHz; null when inactive.",
+    )
 
 
 class TuningResponse(HALModel):

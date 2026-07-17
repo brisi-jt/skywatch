@@ -6,6 +6,7 @@ three station processes (capture, worker, API) that share only the SQLite
 database — it never talks to the worker directly.
 """
 
+import asyncio
 import contextlib
 import logging
 from pathlib import Path
@@ -16,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import Engine
 from sqlalchemy.exc import OperationalError
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from skywatch.api.errors import register_error_handlers
 from skywatch.api.routes import (
@@ -30,11 +31,16 @@ from skywatch.api.routes import (
     tuning,
 )
 from skywatch.api.services.capture import CaptureController
+from skywatch.api.services.deep_tune import (
+    DeepTuneManager,
+    IQSourceFactory,
+    PyRtlSdrSourceFactory,
+)
 from skywatch.api.services.recordings import build_summaries
 from skywatch.api.services.status import build_status
 from skywatch.api.ws import ChangePoller, StreamHub, run_poller
 from skywatch.db.engine import create_db_engine, default_db_path
-from skywatch.db.models import Recording
+from skywatch.db.models import Frequency, Recording
 from skywatch.settings import Settings
 from skywatch.tuning import TuningService
 
@@ -53,11 +59,14 @@ Reading the data:
 - `/runbook` and `/glossary` — station documents as Markdown.
 
 Live updates come from `WS /stream`. Every message is an envelope
-`{"type": <event>, "payload": <object>}` with three event types:
+`{"type": <event>, "payload": <object>}` with five event types:
 `recording.new` (payload: a /recordings list item), `recording.updated`
-(same shape, sent when a clip's pipeline stage or verdicts change), and
+(same shape, sent when a clip's pipeline stage or verdicts change),
 `status.changed` (payload: the /status shape, sent when station settings
-change). The stream sends events only — anything a client sends is ignored.
+change), and — only while a deep tune session is running — `spectrum.frame`
+(payload: frequency axis metadata plus a dB curve and per-channel powers)
+and `deep_tune.state` (payload: started/warning/stopped with a reason).
+The stream sends events only — anything a client sends is ignored.
 
 Errors are RFC 7807 problem details (`application/problem+json`) with a
 stable `code` field to switch on.
@@ -93,6 +102,7 @@ def create_app(
     content_dir: Path | None = None,
     static_dir: Path | None = None,
     ws_poll_interval: float = 1.0,
+    deep_tune_factory: IQSourceFactory | None = None,
 ) -> FastAPI:
     settings = settings or Settings()
     engine = engine or create_db_engine(default_db_path(settings.data_root))
@@ -114,9 +124,9 @@ def create_app(
         return build_summaries(session, [recording])[0].model_dump(mode="json", by_alias=True)
 
     def _status_payload(session: Session) -> dict:
-        return build_status(session, settings=settings, capture=capture).model_dump(
-            mode="json", by_alias=True
-        )
+        return build_status(
+            session, settings=settings, capture=capture, deep_tune=deep_tune
+        ).model_dump(mode="json", by_alias=True)
 
     poller = ChangePoller(
         engine=engine,
@@ -126,10 +136,42 @@ def create_app(
         interval=ws_poll_interval,
     )
 
+    # deep tune runs in its own thread; events reach websocket clients by
+    # hopping onto the server's event loop, captured at startup below
+    loop_holder: dict[str, asyncio.AbstractEventLoop] = {}
+
+    def _publish_event(message: dict) -> None:
+        loop = loop_holder.get("loop")
+        if loop is None or loop.is_closed():
+            logger.warning("dropping %s event: no running event loop", message.get("type"))
+            return
+        asyncio.run_coroutine_threadsafe(hub.broadcast(message), loop)
+
+    def _restart_capture() -> None:
+        with Session(engine) as session:
+            has_active = (
+                session.exec(select(Frequency).where(Frequency.is_active)).first() is not None
+            )
+        capture.restart(has_active=has_active)
+
+    deep_tune = DeepTuneManager(
+        source_factory=deep_tune_factory or PyRtlSdrSourceFactory(),
+        publish=_publish_event,
+        stop_capture=capture.stop,
+        restart_capture=_restart_capture,
+        clients_connected=lambda: hub.client_count > 0,
+    )
+
     @contextlib.asynccontextmanager
     async def lifespan(app: FastAPI):
-        async with run_poller(poller):
-            yield
+        loop_holder["loop"] = asyncio.get_running_loop()
+        try:
+            async with run_poller(poller):
+                yield
+        finally:
+            # a session left running at shutdown must not strand the station
+            # off-air; stop() joins the thread, whose exit restarts capture
+            await asyncio.to_thread(deep_tune.shutdown)
 
     app = FastAPI(
         title="skywatch station",
@@ -143,6 +185,7 @@ def create_app(
     app.state.content_dir = content_dir
     app.state.timezone = ZoneInfo(settings.server.timezone)
     app.state.stream_hub = hub
+    app.state.deep_tune = deep_tune
 
     # The dashboard is served same-origin in normal use; the permissive CORS
     # policy exists for dashboard development servers on other local ports,

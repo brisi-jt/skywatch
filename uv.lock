@@ -692,6 +692,15 @@ wheels = [
 ]
 
 [[package]]
+name = "pyrtlsdr"
+version = "0.4.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/07/e0/4011cab0c7d1f886c2851e1d683fc807130eb7a90d48a4e2dabfde50b0e0/pyrtlsdr-0.4.0.tar.gz", hash = "sha256:67f10775b8b56be9d64fb932881795c2a896425f1efbc78cca6ea8b734c46cde", size = 37623, upload-time = "2026-03-01T21:47:43.685Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9e/e2/ee05a0e985e1175be2ed451dcdd525fc4901bbe891399056d56fd9ab47c4/pyrtlsdr-0.4.0-py3-none-any.whl", hash = "sha256:964dc69e261f608f617db0e48c5d92e8d8c975f1c1c3c1d8add8d8012b72bd14", size = 31484, upload-time = "2026-03-01T21:47:41.541Z" },
+]
+
+[[package]]
 name = "pytest"
 version = "9.0.3"
 source = { registry = "https://pypi.org/simple" }
@@ -869,6 +878,10 @@ dev = [
     { name = "respx" },
     { name = "ruff" },
 ]
+tuning = [
+    { name = "numpy" },
+    { name = "pyrtlsdr" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -876,7 +889,9 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.115" },
     { name = "faster-whisper", marker = "extra == 'asr'", specifier = ">=1.1" },
     { name = "httpx", specifier = ">=0.27" },
+    { name = "numpy", marker = "extra == 'tuning'", specifier = ">=1.26" },
     { name = "pydantic-settings", specifier = ">=2.6" },
+    { name = "pyrtlsdr", marker = "extra == 'tuning'", specifier = ">=0.3" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24" },
     { name = "pyyaml", specifier = ">=6.0" },
@@ -887,7 +902,7 @@ requires-dist = [
     { name = "watchdog", specifier = ">=5.0" },
     { name = "websockets", specifier = ">=13" },
 ]
-provides-extras = ["asr", "dev"]
+provides-extras = ["asr", "tuning", "dev"]
 
 [[package]]
 name = "sqlalchemy"

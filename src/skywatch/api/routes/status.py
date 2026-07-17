@@ -5,9 +5,10 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 from sqlmodel import Session
 
-from skywatch.api.deps import get_capture, get_session, get_settings
+from skywatch.api.deps import get_capture, get_deep_tune, get_session, get_settings
 from skywatch.api.schemas import StatusResponse
 from skywatch.api.services.capture import CaptureController
+from skywatch.api.services.deep_tune import DeepTuneManager
 from skywatch.api.services.status import build_status
 from skywatch.settings import Settings
 
@@ -33,5 +34,6 @@ def get_status(
     session: Annotated[Session, Depends(get_session)],
     settings: Annotated[Settings, Depends(get_settings)],
     capture: Annotated[CaptureController, Depends(get_capture)],
+    deep_tune: Annotated[DeepTuneManager, Depends(get_deep_tune)],
 ) -> StatusResponse:
-    return build_status(session, settings=settings, capture=capture)
+    return build_status(session, settings=settings, capture=capture, deep_tune=deep_tune)

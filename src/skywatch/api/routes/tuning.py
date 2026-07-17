@@ -1,23 +1,29 @@
-"""Tuning bench routes: read levers and meters, apply values, save a baseline."""
+"""Tuning bench routes: read levers and meters, apply values, save a baseline,
+and run exclusive deep tune spectrum sessions."""
 
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
 from sqlmodel import Session
 
-from skywatch.api.deps import get_capture, get_session, get_settings
+from skywatch.api.deps import get_capture, get_deep_tune, get_session, get_settings
 from skywatch.api.errors import ProblemDetail
 from skywatch.api.schemas import (
+    DeepTuneSessionResponse,
     MetersResponse,
     TuningApplyRequest,
     TuningApplyResponse,
     TuningResponse,
 )
 from skywatch.api.services.capture import CaptureController
+from skywatch.api.services.deep_tune import DeepTuneManager
 from skywatch.api.services.tuning import (
     apply_tuning,
     meters_view,
+    ping_deep_tune,
     save_baseline,
+    start_deep_tune,
+    stop_deep_tune,
     tuning_view,
 )
 from skywatch.settings import Settings
@@ -36,15 +42,16 @@ router = APIRouter(tags=["tuning"])
         "(null until one is saved), the shipped factory values, and the "
         "tuner's real gain steps. Gain controls should offer exactly the "
         "listed steps: the hardware cannot sit between them. "
-        "`deep_tune.active` reports whether an exclusive off-air spectrum "
-        "session is running."
+        "`deep_tune` reports whether an exclusive off-air spectrum session "
+        "is running, and if so how long it has left before the idle timeout."
     ),
 )
 def get_tuning(
     session: Annotated[Session, Depends(get_session)],
     settings: Annotated[Settings, Depends(get_settings)],
+    deep_tune: Annotated[DeepTuneManager, Depends(get_deep_tune)],
 ) -> TuningResponse:
-    return tuning_view(session, settings)
+    return tuning_view(session, settings, deep_tune=deep_tune)
 
 
 @router.post(
@@ -61,10 +68,14 @@ def get_tuning(
         "nothing is applied and the 422 problem detail names the offender."
     ),
     responses={
+        409: {
+            "model": ProblemDetail,
+            "description": "A deep tune session has the receiver; stop it first.",
+        },
         422: {
             "model": ProblemDetail,
             "description": "A value is out of range or names an unknown frequency.",
-        }
+        },
     },
 )
 def post_apply(
@@ -72,8 +83,9 @@ def post_apply(
     session: Annotated[Session, Depends(get_session)],
     settings: Annotated[Settings, Depends(get_settings)],
     capture: Annotated[CaptureController, Depends(get_capture)],
+    deep_tune: Annotated[DeepTuneManager, Depends(get_deep_tune)],
 ) -> TuningApplyResponse:
-    return apply_tuning(session, payload, settings=settings, capture=capture)
+    return apply_tuning(session, payload, settings=settings, capture=capture, deep_tune=deep_tune)
 
 
 @router.post(
@@ -89,8 +101,9 @@ def post_apply(
 def post_baseline(
     session: Annotated[Session, Depends(get_session)],
     settings: Annotated[Settings, Depends(get_settings)],
+    deep_tune: Annotated[DeepTuneManager, Depends(get_deep_tune)],
 ) -> TuningResponse:
-    return save_baseline(session, settings)
+    return save_baseline(session, settings, deep_tune=deep_tune)
 
 
 @router.get(
@@ -114,3 +127,75 @@ def get_meters(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> MetersResponse:
     return meters_view(session, settings)
+
+
+@router.post(
+    "/tuning/deep-tune/start",
+    response_model=DeepTuneSessionResponse,
+    summary="Start an exclusive off-air spectrum session",
+    description=(
+        "Stops capture, opens the receiver directly, and streams "
+        "`spectrum.frame` events over `WS /stream` a few times a second — "
+        "the station records nothing while the session runs. The server "
+        "ends the session itself after ten minutes without a ping (a "
+        "`deep_tune.state` warning event fires one minute beforehand) or "
+        "within about thirty seconds of every stream client disappearing; "
+        "every exit path restarts capture."
+    ),
+    responses={
+        409: {
+            "model": ProblemDetail,
+            "description": "A deep tune session is already running.",
+        },
+        503: {
+            "model": ProblemDetail,
+            "description": (
+                "The station cannot stream a spectrum: it is in replay mode, "
+                "receiver support is not installed, or nothing is active."
+            ),
+        },
+    },
+)
+def post_deep_tune_start(
+    session: Annotated[Session, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    deep_tune: Annotated[DeepTuneManager, Depends(get_deep_tune)],
+) -> DeepTuneSessionResponse:
+    return start_deep_tune(session, settings=settings, deep_tune=deep_tune)
+
+
+@router.post(
+    "/tuning/deep-tune/stop",
+    response_model=DeepTuneSessionResponse,
+    summary="Stop the deep tune session",
+    description=(
+        "Ends the running spectrum session and restarts capture before "
+        "responding — the station is back on air when this returns."
+    ),
+    responses={
+        409: {"model": ProblemDetail, "description": "No deep tune session is running."},
+    },
+)
+def post_deep_tune_stop(
+    deep_tune: Annotated[DeepTuneManager, Depends(get_deep_tune)],
+) -> DeepTuneSessionResponse:
+    return stop_deep_tune(deep_tune)
+
+
+@router.post(
+    "/tuning/deep-tune/ping",
+    response_model=DeepTuneSessionResponse,
+    summary="Keep the deep tune session alive",
+    description=(
+        "Resets the session's idle countdown. Send one whenever the "
+        "operator interacts with the tuning bench, and periodically while "
+        "the spectrum view is open."
+    ),
+    responses={
+        409: {"model": ProblemDetail, "description": "No deep tune session is running."},
+    },
+)
+def post_deep_tune_ping(
+    deep_tune: Annotated[DeepTuneManager, Depends(get_deep_tune)],
+) -> DeepTuneSessionResponse:
+    return ping_deep_tune(deep_tune)

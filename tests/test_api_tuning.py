@@ -36,7 +36,11 @@ class TestGetTuning:
         assert len(body["gain_steps_db"]) == 29
         assert body["gain_steps_db"][0] == 0.0
         assert body["gain_steps_db"][-1] == 49.6
-        assert body["deep_tune"] == {"active": False}
+        assert body["deep_tune"] == {
+            "active": False,
+            "started_at": None,
+            "seconds_remaining_before_timeout": None,
+        }
         assert body["last_applied_at"] is None
         links = body["_links"]
         assert links["self"]["href"] == "/tuning"

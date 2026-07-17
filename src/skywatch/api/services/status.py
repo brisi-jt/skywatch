@@ -27,6 +27,7 @@ from skywatch.api.schemas import (
     TraceProcess,
 )
 from skywatch.api.services.capture import CaptureController
+from skywatch.api.services.deep_tune import DeepTuneManager
 from skywatch.capture.validate import validate_frequencies
 from skywatch.db.enums import ApiProvider
 from skywatch.db.models import Frequency, Setting
@@ -105,7 +106,11 @@ def _budgets(session: Session, settings: Settings) -> StatusBudgets:
 
 
 def build_status(
-    session: Session, *, settings: Settings, capture: CaptureController
+    session: Session,
+    *,
+    settings: Settings,
+    capture: CaptureController,
+    deep_tune: DeepTuneManager | None = None,
 ) -> StatusResponse:
     active = active_frequencies(session)
     validation = validate_frequencies(active, settings.capture.mode)
@@ -136,6 +141,7 @@ def build_status(
             paused_for_disk=paused,
             dongle_present=capture.dongle_present(),
             centerfreq_mhz=centerfreq,
+            deep_tune_active=deep_tune.active if deep_tune is not None else False,
         ),
         trace=CaptureTrace(
             db_intent=TraceIntent(

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "skywatch station",
-    "description": "The complete contract for a skywatch station: a receive-only SDR aviation\nmonitor that records VHF airband transmissions, transcribes them locally,\nflags the interesting ones, and attaches probable aircraft.\n\nReading the data:\n\n- `/status` \u2014 station health; `/frequencies` \u2014 the listening plan.\n- `/recordings` \u2014 the clip library; `/clips/interesting` \u2014 the good bits;\n  `/digest` \u2014 one day summarised for a \"today\" view.\n- `/runbook` and `/glossary` \u2014 station documents as Markdown.\n\nLive updates come from `WS /stream`. Every message is an envelope\n`{\"type\": <event>, \"payload\": <object>}` with three event types:\n`recording.new` (payload: a /recordings list item), `recording.updated`\n(same shape, sent when a clip's pipeline stage or verdicts change), and\n`status.changed` (payload: the /status shape, sent when station settings\nchange). The stream sends events only \u2014 anything a client sends is ignored.\n\nErrors are RFC 7807 problem details (`application/problem+json`) with a\nstable `code` field to switch on.\n\nThe API is unauthenticated by design: it is meant for a private LAN or\nTailscale network only, and must not be exposed to the public internet.\nTransmissions are received for personal monitoring; audio must not be\nrebroadcast.\n",
+    "description": "The complete contract for a skywatch station: a receive-only SDR aviation\nmonitor that records VHF airband transmissions, transcribes them locally,\nflags the interesting ones, and attaches probable aircraft.\n\nReading the data:\n\n- `/status` \u2014 station health; `/frequencies` \u2014 the listening plan.\n- `/recordings` \u2014 the clip library; `/clips/interesting` \u2014 the good bits;\n  `/digest` \u2014 one day summarised for a \"today\" view.\n- `/runbook` and `/glossary` \u2014 station documents as Markdown.\n\nLive updates come from `WS /stream`. Every message is an envelope\n`{\"type\": <event>, \"payload\": <object>}` with five event types:\n`recording.new` (payload: a /recordings list item), `recording.updated`\n(same shape, sent when a clip's pipeline stage or verdicts change),\n`status.changed` (payload: the /status shape, sent when station settings\nchange), and \u2014 only while a deep tune session is running \u2014 `spectrum.frame`\n(payload: frequency axis metadata plus a dB curve and per-channel powers)\nand `deep_tune.state` (payload: started/warning/stopped with a reason).\nThe stream sends events only \u2014 anything a client sends is ignored.\n\nErrors are RFC 7807 problem details (`application/problem+json`) with a\nstable `code` field to switch on.\n\nThe API is unauthenticated by design: it is meant for a private LAN or\nTailscale network only, and must not be exposed to the public internet.\nTransmissions are received for personal monitoring; audio must not be\nrebroadcast.\n",
     "version": "0.1.0"
   },
   "paths": {
@@ -844,7 +844,7 @@
           "tuning"
         ],
         "summary": "Read the station's tuning state",
-        "description": "The tuning levers as currently applied \u2014 tuner gain, the squelch threshold (station default plus any per-frequency overrides), and the frequency correction in ppm \u2014 alongside the saved baseline (null until one is saved), the shipped factory values, and the tuner's real gain steps. Gain controls should offer exactly the listed steps: the hardware cannot sit between them. `deep_tune.active` reports whether an exclusive off-air spectrum session is running.",
+        "description": "The tuning levers as currently applied \u2014 tuner gain, the squelch threshold (station default plus any per-frequency overrides), and the frequency correction in ppm \u2014 alongside the saved baseline (null until one is saved), the shipped factory values, and the tuner's real gain steps. Gain controls should offer exactly the listed steps: the hardware cannot sit between them. `deep_tune` reports whether an exclusive off-air spectrum session is running, and if so how long it has left before the idle timeout.",
         "operationId": "get_tuning_tuning_get",
         "responses": {
           "200": {
@@ -885,6 +885,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TuningApplyResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A deep tune session has the receiver; stop it first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -945,6 +955,112 @@
           }
         }
       }
+    },
+    "/tuning/deep-tune/start": {
+      "post": {
+        "tags": [
+          "tuning"
+        ],
+        "summary": "Start an exclusive off-air spectrum session",
+        "description": "Stops capture, opens the receiver directly, and streams `spectrum.frame` events over `WS /stream` a few times a second \u2014 the station records nothing while the session runs. The server ends the session itself after ten minutes without a ping (a `deep_tune.state` warning event fires one minute beforehand) or within about thirty seconds of every stream client disappearing; every exit path restarts capture.",
+        "operationId": "post_deep_tune_start_tuning_deep_tune_start_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeepTuneSessionResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A deep tune session is already running.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The station cannot stream a spectrum: it is in replay mode, receiver support is not installed, or nothing is active.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tuning/deep-tune/stop": {
+      "post": {
+        "tags": [
+          "tuning"
+        ],
+        "summary": "Stop the deep tune session",
+        "description": "Ends the running spectrum session and restarts capture before responding \u2014 the station is back on air when this returns.",
+        "operationId": "post_deep_tune_stop_tuning_deep_tune_stop_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeepTuneSessionResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "No deep tune session is running.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tuning/deep-tune/ping": {
+      "post": {
+        "tags": [
+          "tuning"
+        ],
+        "summary": "Keep the deep tune session alive",
+        "description": "Resets the session's idle countdown. Send one whenever the operator interacts with the tuning bench, and periodically while the spectrum view is open.",
+        "operationId": "post_deep_tune_ping_tuning_deep_tune_ping_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeepTuneSessionResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "No deep tune session is running.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -964,6 +1080,9 @@
           "invalid_setting_value",
           "tuning_invalid_value",
           "tuning_unknown_frequency",
+          "deep_tune_unavailable",
+          "deep_tune_active",
+          "deep_tune_not_active",
           "recording_not_classifiable",
           "method_not_allowed",
           "internal_error"
@@ -1209,6 +1328,12 @@
             ],
             "title": "Centerfreq Mhz",
             "description": "Tuner centre frequency for the active plan; null in scan mode."
+          },
+          "deep_tune_active": {
+            "type": "boolean",
+            "title": "Deep Tune Active",
+            "description": "True while a deep tune session has the receiver: capture is deliberately off-air, not failed.",
+            "default": false
           }
         },
         "type": "object",
@@ -1494,11 +1619,81 @@
         "title": "ConfState",
         "description": "How the rtl_airband config file on disk relates to the database plan."
       },
+      "DeepTuneSessionResponse": {
+        "properties": {
+          "_links": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "type": "object",
+            "title": "Links",
+            "description": "HAL links: self plus related resources and the actions currently available on this resource."
+          },
+          "deep_tune": {
+            "$ref": "#/components/schemas/DeepTuneState"
+          },
+          "center_mhz": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Center Mhz",
+            "description": "Centre of the spectrum window being streamed; null when inactive."
+          },
+          "span_mhz": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Span Mhz",
+            "description": "Full width of the spectrum window in MHz; null when inactive."
+          }
+        },
+        "type": "object",
+        "required": [
+          "deep_tune"
+        ],
+        "title": "DeepTuneSessionResponse",
+        "description": "The deep tune session as the start, stop, and ping endpoints report it."
+      },
       "DeepTuneState": {
         "properties": {
           "active": {
             "type": "boolean",
             "title": "Active"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At",
+            "description": "When the session began; null when inactive."
+          },
+          "seconds_remaining_before_timeout": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seconds Remaining Before Timeout",
+            "description": "Seconds until the session ends itself for lack of interaction; null when inactive. Pings reset the countdown."
           }
         },
         "type": "object",

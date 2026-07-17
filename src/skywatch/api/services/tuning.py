@@ -16,6 +16,7 @@ from skywatch.api.errors import APIErrorCode, ProblemException
 from skywatch.api.schemas import (
     AppliedTuning,
     ChannelMeter,
+    DeepTuneSessionResponse,
     DeepTuneState,
     FactoryTuning,
     Link,
@@ -28,7 +29,15 @@ from skywatch.api.schemas import (
     TuningResponse,
 )
 from skywatch.api.services.capture import CaptureController
+from skywatch.api.services.deep_tune import (
+    DeepTuneActive,
+    DeepTuneChannel,
+    DeepTuneConfig,
+    DeepTuneManager,
+    DeepTuneNotActive,
+)
 from skywatch.capture.stats import default_stats_path, read_stats
+from skywatch.capture.validate import validate_frequencies
 from skywatch.db.models import Frequency, Recording, utcnow
 from skywatch.settings import Settings
 from skywatch.tuning import (
@@ -89,7 +98,20 @@ def _applied_model(session: Session, values: TuningValues) -> AppliedTuning:
     )
 
 
-def tuning_view(session: Session, settings: Settings) -> TuningResponse:
+def _deep_tune_state(deep_tune: DeepTuneManager | None) -> DeepTuneState:
+    if deep_tune is None:
+        return DeepTuneState(active=False)
+    status_ = deep_tune.state()
+    return DeepTuneState(
+        active=status_.active,
+        started_at=status_.started_at,
+        seconds_remaining_before_timeout=status_.seconds_remaining_before_timeout,
+    )
+
+
+def tuning_view(
+    session: Session, settings: Settings, *, deep_tune: DeepTuneManager | None = None
+) -> TuningResponse:
     service = TuningService(settings.capture)
     baseline = service.baseline(session)
     return TuningResponse(
@@ -102,7 +124,7 @@ def tuning_view(session: Session, settings: Settings) -> TuningResponse:
         ),
         gain_steps_db=list(R820T_GAIN_STEPS_DB),
         last_applied_at=service.last_applied_at(session),
-        deep_tune=DeepTuneState(active=False),
+        deep_tune=_deep_tune_state(deep_tune),
         links=_LINKS,
     )
 
@@ -160,7 +182,14 @@ def apply_tuning(
     *,
     settings: Settings,
     capture: CaptureController,
+    deep_tune: DeepTuneManager | None = None,
 ) -> TuningApplyResponse:
+    if deep_tune is not None and deep_tune.active:
+        raise ProblemException(
+            status.HTTP_409_CONFLICT,
+            APIErrorCode.DEEP_TUNE_ACTIVE,
+            "a deep tune session has the receiver; exit deep tune before applying tuning changes",
+        )
     _validate_apply(session, payload)
     service = TuningService(settings.capture)
     values = TuningValues(
@@ -176,7 +205,7 @@ def apply_tuning(
     has_active = session.exec(select(Frequency).where(Frequency.is_active)).first() is not None
     restarted, warning = capture.restart(has_active=has_active)
 
-    view = tuning_view(session, settings)
+    view = tuning_view(session, settings, deep_tune=deep_tune)
     return TuningApplyResponse(
         **view.model_dump(),
         capture_restarted=restarted,
@@ -184,10 +213,114 @@ def apply_tuning(
     )
 
 
-def save_baseline(session: Session, settings: Settings) -> TuningResponse:
+def save_baseline(
+    session: Session, settings: Settings, *, deep_tune: DeepTuneManager | None = None
+) -> TuningResponse:
     service = TuningService(settings.capture)
     service.save_baseline(session, service.current(session))
-    return tuning_view(session, settings)
+    return tuning_view(session, settings, deep_tune=deep_tune)
+
+
+# -- deep tune sessions --------------------------------------------------------------
+
+
+def _deep_tune_links(active: bool) -> dict[str, Link]:
+    links = {"tuning": Link(href="/tuning"), "stream": Link(href="/stream")}
+    if active:
+        links["stop"] = Link(href="/tuning/deep-tune/stop")
+        links["ping"] = Link(href="/tuning/deep-tune/ping")
+    else:
+        links["start"] = Link(href="/tuning/deep-tune/start")
+    return links
+
+
+def _deep_tune_response(deep_tune: DeepTuneManager) -> DeepTuneSessionResponse:
+    status_ = deep_tune.state()
+    return DeepTuneSessionResponse(
+        deep_tune=_deep_tune_state(deep_tune),
+        center_mhz=status_.center_mhz,
+        span_mhz=status_.span_mhz,
+        links=_deep_tune_links(status_.active),
+    )
+
+
+def _unavailable(detail: str) -> ProblemException:
+    return ProblemException(
+        status.HTTP_503_SERVICE_UNAVAILABLE,
+        APIErrorCode.DEEP_TUNE_UNAVAILABLE,
+        detail,
+    )
+
+
+def start_deep_tune(
+    session: Session, *, settings: Settings, deep_tune: DeepTuneManager
+) -> DeepTuneSessionResponse:
+    if settings.capture.source != "live":
+        raise _unavailable(
+            "this station is replaying fixture recordings rather than listening "
+            "with a receiver, so there is no live spectrum to tune"
+        )
+    reason = deep_tune.availability()
+    if reason is not None:
+        raise _unavailable(reason)
+    active = session.exec(
+        select(Frequency).where(Frequency.is_active).order_by(Frequency.mhz)  # type: ignore[arg-type]
+    ).all()
+    if not active:
+        raise _unavailable(
+            "no active frequencies: activate at least one channel so the "
+            "spectrum view has something to centre on"
+        )
+    # centre one tuner window over the active plan; in scan mode (or an
+    # over-wide plan) this covers the largest fitting group and any channel
+    # outside the window simply reads no power
+    center_mhz = validate_frequencies(active, "multichannel").suggested_centerfreq_mhz
+    values = TuningService(settings.capture).current(session)
+    config = DeepTuneConfig(
+        center_mhz=center_mhz,
+        sample_rate_msps=settings.capture.sample_rate_msps,
+        device_index=settings.capture.device_index,
+        gain_db=values.gain_db,
+        ppm=values.ppm,
+        channels=[DeepTuneChannel(freq_id=f.id, label=f.label, mhz=f.mhz) for f in active],
+    )
+    try:
+        deep_tune.start(config)
+    except DeepTuneActive:
+        raise _already_active() from None
+    return _deep_tune_response(deep_tune)
+
+
+def _already_active() -> ProblemException:
+    return ProblemException(
+        status.HTTP_409_CONFLICT,
+        APIErrorCode.DEEP_TUNE_ACTIVE,
+        "a deep tune session is already running; stop it before starting another",
+    )
+
+
+def stop_deep_tune(deep_tune: DeepTuneManager) -> DeepTuneSessionResponse:
+    try:
+        deep_tune.stop()
+    except DeepTuneNotActive:
+        raise ProblemException(
+            status.HTTP_409_CONFLICT,
+            APIErrorCode.DEEP_TUNE_NOT_ACTIVE,
+            "no deep tune session is running",
+        ) from None
+    return _deep_tune_response(deep_tune)
+
+
+def ping_deep_tune(deep_tune: DeepTuneManager) -> DeepTuneSessionResponse:
+    try:
+        deep_tune.ping()
+    except DeepTuneNotActive:
+        raise ProblemException(
+            status.HTTP_409_CONFLICT,
+            APIErrorCode.DEEP_TUNE_NOT_ACTIVE,
+            "no deep tune session is running to keep alive",
+        ) from None
+    return _deep_tune_response(deep_tune)
 
 
 def _clips_since(session: Session, freq_id: int, since: datetime) -> int:

@@ -7,6 +7,7 @@ from fastapi import Request
 from sqlmodel import Session
 
 from skywatch.api.services.capture import CaptureController
+from skywatch.api.services.deep_tune import DeepTuneManager
 from skywatch.settings import Settings
 
 
@@ -21,6 +22,10 @@ def get_settings(request: Request) -> Settings:
 
 def get_capture(request: Request) -> CaptureController:
     return request.app.state.capture
+
+
+def get_deep_tune(request: Request) -> DeepTuneManager:
+    return request.app.state.deep_tune
 
 
 def get_timezone(request: Request) -> ZoneInfo:
