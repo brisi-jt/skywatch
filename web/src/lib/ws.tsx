@@ -14,6 +14,35 @@ import type { RecordingListResponse, RecordingSummary, StatusResponse } from "./
 import { wsUrl } from "./api/client";
 import { localDay, todayIso } from "./format";
 
+/** One channel's readout inside a deep tune spectrum frame. */
+export interface SpectrumChannelReading {
+  freq_id: number;
+  label: string;
+  mhz: number;
+  /** Null when the channel sits outside the receiver's window. */
+  power_db: number | null;
+  snr_db: number | null;
+}
+
+/** A `spectrum.frame` payload: one sweep of the deep tune scope. */
+export interface SpectrumFrame {
+  start_mhz: number;
+  stop_mhz: number;
+  bin_hz: number;
+  db: number[];
+  noise_floor_db: number;
+  channels: SpectrumChannelReading[];
+  ts: string;
+}
+
+/** A `deep_tune.state` payload: the session announcing its lifecycle. */
+export interface DeepTuneStateEvent {
+  state: "started" | "warning" | "stopped";
+  reason: "requested" | "idle_timeout" | "connection_lost" | "error" | null;
+  started_at: string | null;
+  seconds_remaining: number | null;
+}
+
 interface WsState {
   connected: boolean;
   /** Clips that arrived over the stream but are not folded into lists yet. */
@@ -26,6 +55,10 @@ interface WsState {
    * listeners must be cheap — they run on the socket's message path.
    */
   onNewRecording: (listener: (summary: RecordingSummary) => void) => () => void;
+  /** Spectrum sweeps, flowing only while a deep tune session runs. */
+  onSpectrumFrame: (listener: (frame: SpectrumFrame) => void) => () => void;
+  /** Deep tune lifecycle events: started, the idle warning, stopped. */
+  onDeepTuneState: (listener: (event: DeepTuneStateEvent) => void) => () => void;
 }
 
 const WsContext = createContext<WsState>({
@@ -33,6 +66,8 @@ const WsContext = createContext<WsState>({
   pendingNewClips: 0,
   foldInNewClips: () => {},
   onNewRecording: () => () => {},
+  onSpectrumFrame: () => () => {},
+  onDeepTuneState: () => () => {},
 });
 
 export function useWs() {
@@ -40,7 +75,12 @@ export function useWs() {
 }
 
 interface StreamEvent {
-  type: "recording.new" | "recording.updated" | "status.changed";
+  type:
+    | "recording.new"
+    | "recording.updated"
+    | "status.changed"
+    | "spectrum.frame"
+    | "deep_tune.state";
   payload: unknown;
 }
 
@@ -55,11 +95,27 @@ export function WsProvider({ children }: { children: React.ReactNode }) {
   const [pendingNewClips, setPendingNewClips] = useState(0);
   const retryRef = useRef(0);
   const newRecordingListeners = useRef(new Set<(summary: RecordingSummary) => void>());
+  const spectrumListeners = useRef(new Set<(frame: SpectrumFrame) => void>());
+  const deepTuneListeners = useRef(new Set<(event: DeepTuneStateEvent) => void>());
 
   const onNewRecording = useCallback((listener: (summary: RecordingSummary) => void) => {
     newRecordingListeners.current.add(listener);
     return () => {
       newRecordingListeners.current.delete(listener);
+    };
+  }, []);
+
+  const onSpectrumFrame = useCallback((listener: (frame: SpectrumFrame) => void) => {
+    spectrumListeners.current.add(listener);
+    return () => {
+      spectrumListeners.current.delete(listener);
+    };
+  }, []);
+
+  const onDeepTuneState = useCallback((listener: (event: DeepTuneStateEvent) => void) => {
+    deepTuneListeners.current.add(listener);
+    return () => {
+      deepTuneListeners.current.delete(listener);
     };
   }, []);
 
@@ -99,6 +155,16 @@ export function WsProvider({ children }: { children: React.ReactNode }) {
       }
       if (event.type === "status.changed") {
         queryClient.setQueryData(["status"], event.payload as StatusResponse);
+        return;
+      }
+      if (event.type === "spectrum.frame") {
+        const frame = event.payload as SpectrumFrame;
+        spectrumListeners.current.forEach((listener) => listener(frame));
+        return;
+      }
+      if (event.type === "deep_tune.state") {
+        const state = event.payload as DeepTuneStateEvent;
+        deepTuneListeners.current.forEach((listener) => listener(state));
       }
     };
 
@@ -165,7 +231,16 @@ export function WsProvider({ children }: { children: React.ReactNode }) {
   }, [queryClient]);
 
   return (
-    <WsContext.Provider value={{ connected, pendingNewClips, foldInNewClips, onNewRecording }}>
+    <WsContext.Provider
+      value={{
+        connected,
+        pendingNewClips,
+        foldInNewClips,
+        onNewRecording,
+        onSpectrumFrame,
+        onDeepTuneState,
+      }}
+    >
       {children}
     </WsContext.Provider>
   );

@@ -6,9 +6,10 @@ import { HealthChip, type Health } from "@/components/chips";
 import type { StatusResponse } from "@/lib/api/client";
 
 export function deriveHealth(status: StatusResponse) {
+  // Deep tune is a deliberate, self-ending pause — cautionary, not a fault.
   const capture: Health = status.capture.running
     ? "good"
-    : status.capture.paused_for_disk
+    : status.capture.deep_tune_active || status.capture.paused_for_disk
       ? "warn"
       : "bad";
 
@@ -42,9 +43,11 @@ export function HealthStrip({ status }: { status: StatusResponse }) {
         label={
           status.capture.running
             ? "Listening"
-            : status.capture.paused_for_disk
-              ? "Paused — disk"
-              : "Not listening"
+            : status.capture.deep_tune_active
+              ? "Off-air — deep tune"
+              : status.capture.paused_for_disk
+                ? "Paused — disk"
+                : "Not listening"
         }
       />
       <HealthChip

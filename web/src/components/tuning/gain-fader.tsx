@@ -145,7 +145,8 @@ export function GainFader({
         aria-orientation="horizontal"
         aria-valuemin={min}
         aria-valuemax={max}
-        aria-valuenow={value}
+        // The step table carries float32 noise (29.700000762…); round what is spoken.
+        aria-valuenow={Math.round(value * 10) / 10}
         aria-valuetext={`${value.toFixed(1)} decibels`}
         aria-disabled={disabled || undefined}
         onPointerDown={handlePointerDown}

@@ -45,9 +45,11 @@ export default function StationPage() {
             label={
               s.capture.running
                 ? "Capture running"
-                : s.capture.paused_for_disk
-                  ? "Capture paused — disk space"
-                  : "Capture stopped"
+                : s.capture.deep_tune_active
+                  ? "Off-air — deep tune"
+                  : s.capture.paused_for_disk
+                    ? "Capture paused — disk space"
+                    : "Capture stopped"
             }
           />
           <HealthChip
@@ -86,7 +88,16 @@ export default function StationPage() {
           {frequencies.isError && (
             <p className="text-base text-health-bad">The frequency list could not be loaded.</p>
           )}
-          {frequencies.data && <FrequencyTable frequencies={frequencies.data.items} />}
+          {frequencies.data && (
+            <FrequencyTable
+              frequencies={frequencies.data.items}
+              lockedNote={
+                s.capture.deep_tune_active
+                  ? "The tuning bench's scope has the radio right now, so the plan can't change. Exit Deep Tune first."
+                  : null
+              }
+            />
+          )}
         </div>
       </section>
 
@@ -129,6 +140,9 @@ function plainStatusSentence(s: StatusResponse, activeCount: number | undefined)
         : "the airband";
     const mode = s.capture.mode === "scan" ? ", scanning" : "";
     return `Listening on ${freqs}${mode}.`;
+  }
+  if (s.capture.deep_tune_active) {
+    return "Off the air while the tuning bench's scope borrows the radio.";
   }
   if (s.capture.paused_for_disk) return "Paused until some disk space is freed.";
   return "The station is not listening right now.";

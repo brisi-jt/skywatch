@@ -5,6 +5,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { ApplyBar, type ApplyBarState } from "@/components/tuning/apply-bar";
 import { ChannelStrip, type MeterState } from "@/components/tuning/channel-strip";
+import { DeepTuneSection } from "@/components/tuning/deep-tune";
 import { ExplainBadge, ExplainOverlay } from "@/components/tuning/explain-overlay";
 import { GainFader } from "@/components/tuning/gain-fader";
 import { Lcd } from "@/components/tuning/lcd";
@@ -357,6 +358,9 @@ export function TuningBench() {
           </div>
         </div>
       </section>
+
+      {/* Deep tune: the off-air spectrum scope. */}
+      <DeepTuneSection deepTune={data.deep_tune} replayMode={Boolean(replayMode)} dim={dim} />
 
       {/* Channel strips. */}
       <section aria-label="Channel strips" data-walkthrough="strips">

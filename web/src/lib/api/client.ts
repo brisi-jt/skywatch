@@ -35,6 +35,7 @@ export type FactoryTuning = Schemas["FactoryTuning"];
 export type SquelchOverride = Schemas["SquelchOverride"];
 export type MetersResponse = Schemas["MetersResponse"];
 export type ChannelMeter = Schemas["ChannelMeter"];
+export type DeepTuneState = Schemas["DeepTuneState"];
 
 export function audioUrl(recordingId: number): string {
   return `${API_BASE}/recordings/${recordingId}/audio`;

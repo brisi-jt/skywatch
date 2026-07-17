@@ -64,6 +64,13 @@
   --lamp-on: oklch(0.72 0.17 60);
   --lamp-glow: oklch(0.72 0.17 60 / 0.5);
 
+  /* Deep tune scope (light): ink trace on graph paper behind glass. */
+  --scope-screen: oklch(0.955 0.012 95);
+  --scope-trace: oklch(0.3 0.045 145);
+  --scope-trace-fill: oklch(0.3 0.045 145 / 0.1);
+  --scope-grid: oklch(0.85 0.02 95);
+  --scope-grid-label: oklch(0.55 0.02 90);
+
   --radius: 0.5rem;
 }
 
@@ -115,6 +122,13 @@
   --lamp-off: oklch(0.35 0.045 55);
   --lamp-on: oklch(0.78 0.16 60);
   --lamp-glow: oklch(0.78 0.16 60 / 0.55);
+
+  /* Deep tune scope (dark): phosphor trace on a near-black tube. */
+  --scope-screen: oklch(0.13 0.012 130);
+  --scope-trace: oklch(0.84 0.14 135);
+  --scope-trace-fill: oklch(0.84 0.14 135 / 0.14);
+  --scope-grid: oklch(0.28 0.03 130);
+  --scope-grid-label: oklch(0.55 0.05 130);
 }
 
 @theme inline {
@@ -348,4 +362,40 @@
   .jewel-lamp {
     transition: none;
   }
+}
+
+/* Deep tune scope: an oscilloscope housing. The bezel is the instrument's
+ * moulded surround; the screen carries CRT-curved corners and sits behind
+ * inset glass. Texture only — all interaction is ordinary buttons. */
+.scope-bezel {
+  padding: 0.875rem;
+  border-radius: calc(var(--radius) + 10px);
+  background: linear-gradient(180deg, oklch(1 0 0 / 0.35), transparent 40%),
+    var(--bench-inset);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.3),
+    inset 0 -1px 2px oklch(0 0 0 / 0.18),
+    0 1px 3px oklch(0 0 0 / 0.15);
+}
+.dark .scope-bezel {
+  background: linear-gradient(180deg, oklch(1 0 0 / 0.07), transparent 40%),
+    oklch(0.22 0.012 65);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.08),
+    inset 0 -1px 2px oklch(0 0 0 / 0.5),
+    0 1px 3px oklch(0 0 0 / 0.4);
+}
+.scope-screen {
+  overflow: hidden;
+  /* CUSTOM_STYLE: elliptical corner radii give the screen its CRT curvature */
+  border-radius: 22px / 16px;
+  background: var(--scope-screen);
+  box-shadow:
+    inset 0 3px 9px oklch(0 0 0 / 0.3),
+    inset 0 -1px 0 oklch(1 0 0 / 0.12);
+}
+.dark .scope-screen {
+  box-shadow:
+    inset 0 3px 10px oklch(0 0 0 / 0.7),
+    inset 0 -1px 0 oklch(1 0 0 / 0.04);
 }

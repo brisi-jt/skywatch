@@ -272,3 +272,45 @@ export function useSaveBaseline() {
     },
   });
 }
+
+// -- deep tune sessions ---------------------------------------------------------------
+
+export function useStartDeepTune() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const result = await api.POST("/tuning/deep-tune/start");
+      return unwrap(result);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["tuning"] });
+      queryClient.invalidateQueries({ queryKey: ["status"] });
+    },
+  });
+}
+
+export function useStopDeepTune() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const result = await api.POST("/tuning/deep-tune/stop");
+      return unwrap(result);
+    },
+    onSettled: () => {
+      // the stop endpoint returns after capture is already restarted
+      queryClient.invalidateQueries({ queryKey: ["tuning"] });
+      queryClient.invalidateQueries({ queryKey: ["status"] });
+      queryClient.invalidateQueries({ queryKey: ["tuning-meters"] });
+    },
+  });
+}
+
+/** Interaction keep-alive; callers throttle, the server resets its countdown. */
+export function usePingDeepTune() {
+  return useMutation({
+    mutationFn: async () => {
+      const result = await api.POST("/tuning/deep-tune/ping");
+      return unwrap(result);
+    },
+  });
+}

@@ -15,7 +15,14 @@ interface Conflict {
   suggestedCenterfreq: number | null;
 }
 
-export function FrequencyTable({ frequencies }: { frequencies: FrequencyResource[] }) {
+export function FrequencyTable({
+  frequencies,
+  lockedNote,
+}: {
+  frequencies: FrequencyResource[];
+  /** When set, the plan cannot change right now — switches off, note shown. */
+  lockedNote?: string | null;
+}) {
   const action = useFrequencyAction();
   const [conflict, setConflict] = useState<Conflict | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
@@ -30,7 +37,11 @@ export function FrequencyTable({ frequencies }: { frequencies: FrequencyResource
       {
         onSuccess: (response) => setWarnings(response.warnings),
         onError: (error) => {
-          if (error instanceof ApiError && error.problem?.code === "window_conflict") {
+          if (error instanceof ApiError && error.problem?.code === "deep_tune_active") {
+            setWarnings([
+              "The tuning bench's scope has the radio right now, so the plan can't change. Exit Deep Tune first.",
+            ]);
+          } else if (error instanceof ApiError && error.problem?.code === "window_conflict") {
             const problem = error.problem as unknown as Record<string, unknown>;
             setConflict({
               detail: error.problem.detail ?? "These frequencies do not fit together.",
@@ -55,6 +66,11 @@ export function FrequencyTable({ frequencies }: { frequencies: FrequencyResource
 
   return (
     <div className="flex flex-col gap-3">
+      {lockedNote && (
+        <p className="rounded-xl border border-health-warn/40 bg-health-warn-surface px-4 py-3 text-base">
+          {lockedNote}
+        </p>
+      )}
       {conflict && (
         <div className="rounded-xl border border-health-warn/40 bg-health-warn-surface px-4 py-3">
           <p className="text-base font-medium text-health-warn">
@@ -125,7 +141,7 @@ export function FrequencyTable({ frequencies }: { frequencies: FrequencyResource
                 <td className="px-4 py-3 text-right">
                   <Switch
                     checked={freq.is_active}
-                    disabled={busyId !== null}
+                    disabled={busyId !== null || Boolean(lockedNote)}
                     onCheckedChange={(next) => toggle(freq, next)}
                     aria-label={`${freq.is_active ? "Stop" : "Start"} listening on ${freq.label}`}
                   />

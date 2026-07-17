@@ -9,7 +9,7 @@
 export interface ExplainItem {
   /** Matches the numbered badge shown on the bench while the overlay is up. */
   number: number;
-  anchor: "gain" | "squelch" | "strips" | "ppm" | "meters" | "apply";
+  anchor: "gain" | "squelch" | "strips" | "ppm" | "meters" | "apply" | "deep-tune";
   title: string;
   body: string;
 }
@@ -70,6 +70,17 @@ export const EXPLAIN_ITEMS: ExplainItem[] = [
       "against. The radio reports fresh figures every fifteen seconds, so the " +
       "meters breathe rather than flicker. “Opens” counts how many " +
       "times squelch has let a transmission through since the radio started.",
+  },
+  {
+    number: 7,
+    anchor: "deep-tune",
+    title: "Deep tune — the spectrum scope",
+    body:
+      "A live picture of the whole slice of radio dial the station watches: " +
+      "peaks are transmissions, the flat carpet underneath is the static " +
+      "floor. The radio can only do one job at a time, so opening the scope " +
+      "stops recording until you leave — the amber banner keeps count. Use " +
+      "it to see exactly where signals sit before moving the levers.",
   },
   {
     number: 6,
@@ -200,4 +211,50 @@ export const BENCH_COPY = {
   entryCardTitle: "Tuning bench",
   entryCardBody: "Gain, squelch and frequency trim, with live signal meters.",
   entryCardAction: "Open the tuning bench",
+} as const;
+
+export const DEEP_TUNE_COPY = {
+  sectionTitle: "Deep tune",
+  sectionLead:
+    "A live spectrum scope: the whole slice of dial the station watches, " +
+    "drawn a couple of times a second, with each active frequency marked. " +
+    "The radio can only do one job at a time, so the station stops " +
+    "recording while the scope is open.",
+  openButton: "Open the scope…",
+
+  confirmTitle: "Stop recording and open the scope?",
+  confirmBody:
+    "The station stops recording while Deep Tune is open — any radio calls " +
+    "during that time are missed. The scope closes itself after ten minutes " +
+    "without you touching anything, and recording restarts the moment it " +
+    "closes.",
+  confirmAction: "Stop recording and open",
+  confirmCancel: "Keep recording",
+
+  starting: "Opening the scope — taking the station off the air…",
+  unavailableLead: "The scope can't open right now.",
+
+  offAirBanner: "Off the air — Deep Tune has the radio.",
+  offAirElapsed: "off air for",
+  exitButton: "Exit — restart recording",
+  exiting: "Closing the scope and restarting the radio…",
+
+  idleWarning:
+    "Still there? Deep Tune closes itself in about a minute and recording " +
+    "restarts. Touch any lever — or press Keep going — to stay.",
+  keepGoing: "Keep going",
+
+  resumedRequested: "Back on the air — the radio is recording again.",
+  resumedIdle:
+    "Deep Tune closed itself after ten quiet minutes, and the radio is " +
+    "recording again.",
+  resumedConnectionLost:
+    "Deep Tune closed because the dashboard lost touch with the station; " +
+    "the radio is recording again.",
+  resumedError:
+    "The scope hit a problem and closed; the radio is recording again.",
+
+  noiseFloorLabel: "static floor",
+  scopeSummaryLead: "Spectrum readings:",
+  outsideWindow: "outside the window",
 } as const;
