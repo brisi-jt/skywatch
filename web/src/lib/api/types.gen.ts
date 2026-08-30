@@ -13,7 +13,7 @@ export interface paths {
         };
         /**
          * Station health at a glance
-         * @description Everything the station knows about its own health: capture state (source, mode, tuner centre frequency, dongle presence, the disk-guard pause flag), a three-step trace of the capture chain (database plan → rendered config file → running process) that pinpoints where a frequency change stalled, pipeline queue depths per stage, disk headroom, and today's spend against the external API budgets. `station_name` is null until the owner names the station — the cue for a first-run naming dialog.
+         * @description Everything the station knows about its own health: capture state (source, mode, tuner centre frequency, dongle presence, the disk-guard pause flag), a three-step trace of the capture chain (database plan → rendered config file → running process) that pinpoints where a frequency change stalled, pipeline queue depths per stage, disk headroom, and today's spend against the external API budgets. `station_name` is null until the owner names the station — the cue for a first-run naming dialog. `timezone` is the IANA zone the dashboard formats local times and calendar days in.
          */
         get: operations["get_status_status_get"];
         put?: never;
@@ -55,7 +55,7 @@ export interface paths {
         put?: never;
         /**
          * Start recording a frequency
-         * @description Adds the frequency to the active plan, rewrites the capture configuration, and restarts capture (a restart drops a few seconds of audio — there is no hot retune). In multichannel mode every active frequency must fit one 2.56 MHz tuner window; when the new set does not fit, the response is a 409 problem detail whose `offenders` lists the frequencies to deactivate and whose `suggested_centerfreq_mhz` is the centre frequency for the largest set that does fit. Switching the station to scan mode is the alternative escape hatch, at the cost of missing concurrent transmissions. Activating an already-active frequency changes nothing. While a deep tune session holds the receiver the plan cannot change: the response is a 409 problem detail with code `deep_tune_active`.
+         * @description Adds the frequency to the active plan, rewrites the capture configuration, and restarts capture (a restart drops a few seconds of audio — there is no hot retune). In multichannel mode every active frequency must fit one 2.56 MHz tuner window; when the new set does not fit, the response is a 409 problem detail whose `offenders` lists the frequencies to deactivate and whose `suggested_centerfreq_mhz` is the centre frequency for the largest set that does fit. Switching the station to scan mode is the alternative escape hatch, at the cost of missing concurrent transmissions. Activating an already-active frequency changes nothing. While a deep tune session holds the receiver the plan cannot change: the response is a 409 problem detail with code `deep_tune_active`. While the disk-space guard has capture paused the plan is likewise frozen: the response is a 409 problem detail with code `capture_paused_low_disk`, and the station resumes on its own once free space recovers.
          */
         post: operations["activate_frequency_frequencies__freq_id__activate_post"];
         delete?: never;
@@ -75,7 +75,7 @@ export interface paths {
         put?: never;
         /**
          * Stop recording a frequency
-         * @description Removes the frequency from the active plan, rewrites the capture configuration, and restarts capture. Deactivating the last active frequency stops capture entirely (with a warning in the response) until something is activated again. Deactivating an already-inactive frequency changes nothing. While a deep tune session holds the receiver the plan cannot change: the response is a 409 problem detail with code `deep_tune_active`.
+         * @description Removes the frequency from the active plan, rewrites the capture configuration, and restarts capture. Deactivating the last active frequency stops capture entirely (with a warning in the response) until something is activated again. Deactivating an already-inactive frequency changes nothing. While a deep tune session holds the receiver the plan cannot change: the response is a 409 problem detail with code `deep_tune_active`. While the disk-space guard has capture paused the plan is likewise frozen: the response is a 409 problem detail with code `capture_paused_low_disk`.
          */
         post: operations["deactivate_frequency_frequencies__freq_id__deactivate_post"];
         delete?: never;
@@ -437,7 +437,7 @@ export interface components {
          * @description Stable machine-readable error codes for problem responses.
          * @enum {string}
          */
-        APIErrorCode: "validation_error" | "not_found" | "frequency_not_found" | "recording_not_found" | "document_not_found" | "audio_deleted" | "audio_file_missing" | "window_conflict" | "unknown_setting_key" | "invalid_setting_value" | "tuning_invalid_value" | "tuning_unknown_frequency" | "deep_tune_unavailable" | "deep_tune_active" | "deep_tune_not_active" | "recording_not_classifiable" | "method_not_allowed" | "internal_error";
+        APIErrorCode: "validation_error" | "not_found" | "frequency_not_found" | "recording_not_found" | "document_not_found" | "audio_deleted" | "audio_file_missing" | "window_conflict" | "capture_paused_low_disk" | "unknown_setting_key" | "invalid_setting_value" | "tuning_invalid_value" | "tuning_unknown_frequency" | "deep_tune_unavailable" | "deep_tune_active" | "deep_tune_not_active" | "recording_not_classifiable" | "method_not_allowed" | "internal_error";
         /**
          * AircraftMatchResource
          * @description A probable aircraft near the station when the clip was captured.
@@ -1276,6 +1276,11 @@ export interface components {
              * @description The name the owner gave the station, or null when it has never been named — the signal to offer a first-run naming dialog.
              */
             station_name: string | null;
+            /**
+             * Timezone
+             * @description IANA timezone name the station presents local times in (e.g. `Europe/London`). The dashboard formats every clock and calendar day in this zone rather than assuming one.
+             */
+            timezone: string;
             capture: components["schemas"]["CaptureStatus"];
             trace: components["schemas"]["CaptureTrace"];
             /**
@@ -1525,7 +1530,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetail"];
                 };
             };
-            /** @description The active set would not fit one tuner window, or a deep tune session has the receiver. */
+            /** @description The active set would not fit one tuner window, a deep tune session has the receiver, or capture is paused for low disk. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -1574,7 +1579,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetail"];
                 };
             };
-            /** @description A deep tune session has the receiver. */
+            /** @description A deep tune session has the receiver, or capture is paused for low disk. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -2059,7 +2064,7 @@ export interface operations {
                     "application/json": components["schemas"]["TuningApplyResponse"];
                 };
             };
-            /** @description A deep tune session has the receiver; stop it first. */
+            /** @description A deep tune session has the receiver (stop it first), or capture is paused for low disk (code `capture_paused_low_disk`). */
             409: {
                 headers: {
                     [name: string]: unknown;

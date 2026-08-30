@@ -9,15 +9,43 @@ and the controller is a no-op.
 
 import logging
 import os
+import threading
 from pathlib import Path
 
 from sqlalchemy import Engine
+from sqlmodel import Session
 
 from skywatch.capture.source import CaptureSource, SourceStatus
 from skywatch.capture.stats import default_stats_path
+from skywatch.db.models import Setting
+from skywatch.pipeline.retention import CAPTURE_PAUSED_KEY
 from skywatch.settings import Settings
 
 logger = logging.getLogger(__name__)
+
+
+def capture_paused_for_disk(session: Session) -> bool:
+    """Whether the worker's disk-space guard currently has capture paused."""
+    row = session.get(Setting, CAPTURE_PAUSED_KEY)
+    return row is not None and row.value == "1"
+
+
+def reject_if_capture_paused(session: Session) -> None:
+    """Refuse plan or tuning changes while capture is paused for low disk.
+
+    Those actions restart capture, and only the worker may lift a low-disk
+    pause, so they are blocked with a 409 until free space recovers.
+    """
+    from skywatch.api.errors import APIErrorCode, ProblemException
+
+    if capture_paused_for_disk(session):
+        raise ProblemException(
+            409,
+            APIErrorCode.CAPTURE_PAUSED_LOW_DISK,
+            "capture is paused because free disk is below the floor; the station "
+            "resumes on its own once space is freed, and frequency and tuning "
+            "changes are blocked until then",
+        )
 
 
 class CaptureController:
@@ -30,6 +58,10 @@ class CaptureController:
         conf_path: Path | None = None,
     ) -> None:
         self._settings = settings
+        self._engine = engine
+        self.restart_lock = threading.RLock()
+        """Serialises plan/tuning changes and their capture restart so two
+        concurrent requests cannot interleave read-modify-write-restart."""
         data_root = settings.data_root
         self.conf_path = Path(conf_path) if conf_path else data_root / "rtl_airband.conf"
         self.stats_filepath = default_stats_path(data_root)
@@ -57,18 +89,34 @@ class CaptureController:
         is stopped and left stopped; a failed restart is reported as a
         warning rather than an error, because the plan change itself has
         already been committed and the status trace will show the mismatch.
+
+        While the worker's disk-space guard has capture paused the source is
+        stopped but never started again: the worker is the only process that
+        clears the pause and brings the station back on air. This keeps every
+        restart path — plan changes, tuning apply, deep tune exit — from
+        overriding a low-disk pause.
         """
         if self.source is None:
             return False, None
-        try:
-            self.source.stop()
-            if not has_active:
-                return False, "capture stopped: no active frequencies to record"
-            self.source.start()
-        except Exception as exc:
-            logger.warning("capture restart failed: %s", exc)
-            return False, f"capture restart failed: {exc}"
+        with self.restart_lock:
+            try:
+                self.source.stop()
+                if not has_active:
+                    return False, "capture stopped: no active frequencies to record"
+                if self._paused_for_disk():
+                    return False, (
+                        "capture remains paused: free disk is below the floor; "
+                        "the station resumes on its own once space is freed"
+                    )
+                self.source.start()
+            except Exception as exc:
+                logger.warning("capture restart failed: %s", exc)
+                return False, f"capture restart failed: {exc}"
         return True, None
+
+    def _paused_for_disk(self) -> bool:
+        with Session(self._engine) as session:
+            return capture_paused_for_disk(session)
 
     def stop(self) -> None:
         """Stop capture and leave it stopped.

@@ -28,6 +28,7 @@ def tower(session: Session) -> Frequency:
         facility="London Stansted",
         category=FrequencyCategory.TOWER,
         tuner_group=2,
+        is_active=True,
     )
     session.add(row)
     session.commit()
@@ -100,6 +101,22 @@ class TestIngest:
         path.write_bytes(b"\x00" * 2048)
         assert ingest_recording(session, path=path, data_root=tmp_path) is None
 
+    def test_inactive_frequency_is_skipped(self, session, tmp_path):
+        inactive = Frequency(
+            label="Stansted Tower",
+            mhz=123.805,
+            facility="London Stansted",
+            category=FrequencyCategory.TOWER,
+            tuner_group=2,
+            is_active=False,
+        )
+        session.add(inactive)
+        session.commit()
+        path = drop_fixture(tmp_path, "routine_clearance.mp3", 123_805_000)
+        # the channel was switched off; a stray clip for it must not be revived
+        assert ingest_recording(session, path=path, data_root=tmp_path) is None
+        assert session.exec(select(Recording)).all() == []
+
 
 class TestWatcherIntegration:
     def wait_for_rows(self, engine, count, timeout=10.0) -> list[Recording]:
@@ -142,6 +159,42 @@ class TestWatcherIntegration:
             assert row.freq_id == tower.id
             assert row.stage == RecordingStage.CAPTURED
             assert row.duration_s > 0
+
+    def test_failed_ingest_is_retried_not_dropped(
+        self, engine, session, tower, tmp_path, monkeypatch
+    ):
+        import skywatch.capture.watcher as watcher_module
+
+        calls = {"n": 0}
+        real_ingest = watcher_module.ingest_recording
+
+        def flaky_ingest(session, *, path, data_root):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise RuntimeError("transient database error")
+            return real_ingest(session, path=path, data_root=data_root)
+
+        monkeypatch.setattr(watcher_module, "ingest_recording", flaky_ingest)
+
+        recordings_dir = tmp_path / "recordings"
+        recordings_dir.mkdir()
+        watcher = RecordingWatcher(
+            engine,
+            recordings_dir,
+            data_root=tmp_path,
+            settle_seconds=0.1,
+            poll_interval=0.05,
+        )
+        watcher.start()
+        try:
+            drop_fixture(tmp_path, "routine_clearance.mp3", 123_805_000)
+            rows = self.wait_for_rows(engine, 1)
+        finally:
+            watcher.stop()
+
+        # the first attempt raised; the clip was re-queued and ingested on retry
+        assert len(rows) == 1
+        assert calls["n"] >= 2
 
     def test_scan_existing_picks_up_files_dropped_before_start(
         self, engine, session, tower, tmp_path

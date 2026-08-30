@@ -355,6 +355,13 @@ class StatusResponse(HALModel):
             "been named — the signal to offer a first-run naming dialog."
         )
     )
+    timezone: str = Field(
+        description=(
+            "IANA timezone name the station presents local times in (e.g. "
+            "`Europe/London`). The dashboard formats every clock and calendar "
+            "day in this zone rather than assuming one."
+        )
+    )
     capture: CaptureStatus
     trace: CaptureTrace
     queues: dict[str, int] = Field(

@@ -30,7 +30,13 @@ from skywatch.db.enums import RecordingStage
 from skywatch.db.models import Classification, Frequency, Recording, Setting, Transcript
 from skywatch.pipeline import budget
 from skywatch.pipeline.prefilters import run_prefilters
-from skywatch.pipeline.retention import CAPTURE_PAUSED_KEY, check_disk, prune_routine_audio
+from skywatch.pipeline.retention import (
+    CAPTURE_PAUSED_KEY,
+    DEEP_TUNE_ACTIVE_KEY,
+    DEEP_TUNE_HEARTBEAT_TTL_S,
+    check_disk,
+    prune_routine_audio,
+)
 from skywatch.pipeline.stages.classify import run_classify
 from skywatch.pipeline.stages.enrich import run_enrich
 from skywatch.pipeline.stages.transcribe import run_transcribe
@@ -474,11 +480,23 @@ class PipelineWorker:
                 self._set_paused(session, paused_row, "1")
                 self._paused_for_disk = True
             elif not disk.low and currently_paused:
-                logger.info("disk space recovered (%.2f GB free); resuming capture", disk.free_gb)
-                if self._capture_source is not None:
-                    self._capture_source.start()
+                # disk is fine again: clear the flag so the pause no longer
+                # blocks capture, but only start the receiver if a deep tune
+                # session is not holding it — otherwise defer the resume to
+                # that session's exit (which restarts capture on every path).
                 self._set_paused(session, paused_row, "0")
                 self._paused_for_disk = False
+                if self._deep_tune_holding_receiver(session):
+                    logger.info(
+                        "disk recovered but a deep tune session holds the receiver; "
+                        "deferring capture resume to its exit"
+                    )
+                else:
+                    logger.info(
+                        "disk space recovered (%.2f GB free); resuming capture", disk.free_gb
+                    )
+                    if self._capture_source is not None:
+                        self._capture_source.start()
             else:
                 self._paused_for_disk = currently_paused
         try:
@@ -490,6 +508,20 @@ class PipelineWorker:
                 )
         except Exception:
             logger.exception("retention pruning failed; will retry next pass")
+
+    @staticmethod
+    def _deep_tune_holding_receiver(session: Session) -> bool:
+        """Whether the API's deep tune session currently holds the dongle.
+
+        Reads the cross-process flag written by the API and treats a stale
+        flag (no heartbeat within the TTL) as inactive, so a crashed API
+        process cannot block the disk-recovery resume indefinitely.
+        """
+        row = session.get(Setting, DEEP_TUNE_ACTIVE_KEY)
+        if row is None or row.value != "1":
+            return False
+        age = (datetime.now(UTC) - row.updated_at).total_seconds()
+        return age < DEEP_TUNE_HEARTBEAT_TTL_S
 
     @staticmethod
     def _set_paused(session: Session, row: Setting | None, value: str) -> None:

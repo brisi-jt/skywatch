@@ -1,7 +1,11 @@
 """TuningService: database-owned tuning values seeded once from config.yaml."""
 
+import threading
 from datetime import UTC, datetime
 
+from sqlmodel import Session, SQLModel, select
+
+from skywatch.db.engine import create_db_engine
 from skywatch.db.models import Setting
 from skywatch.settings import CaptureSettings
 from skywatch.tuning import (
@@ -40,6 +44,40 @@ class TestSeed:
         assert session.get(Setting, GAIN_KEY).value == "29.7"
         assert session.get(Setting, SQUELCH_DEFAULT_KEY).value == "9"
         assert session.get(Setting, PPM_KEY).value == "3"
+
+    def test_concurrent_seeding_does_not_raise_or_duplicate(self, tmp_path):
+        """The API and the worker both seed on start; racing that must not
+        error out or write duplicate rows."""
+        import skywatch.db.models  # noqa: F401  (register tables)
+
+        for attempt in range(5):
+            db_engine = create_db_engine(tmp_path / f"race_{attempt}.db")
+            SQLModel.metadata.create_all(db_engine)
+            service = TuningService(CaptureSettings(gain=29.7, squelch_snr_threshold=9, ppm=3))
+            barrier = threading.Barrier(4)
+            errors: list[Exception] = []
+
+            def seed_once(
+                barrier=barrier, db_engine=db_engine, service=service, errors=errors
+            ) -> None:
+                try:
+                    barrier.wait()
+                    with Session(db_engine) as s:
+                        service.ensure_seeded(s)
+                except Exception as exc:  # noqa: BLE001 — recorded for the assertion
+                    errors.append(exc)
+
+            threads = [threading.Thread(target=seed_once) for _ in range(4)]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+
+            assert errors == [], f"concurrent seeding raised: {errors!r}"
+            with Session(db_engine) as s:
+                for key in (GAIN_KEY, SQUELCH_DEFAULT_KEY, PPM_KEY):
+                    rows = s.exec(select(Setting).where(Setting.key == key)).all()
+                    assert len(rows) == 1
 
     def test_database_wins_over_settings_after_seed(self, session):
         TuningService(CaptureSettings(gain=29.7)).ensure_seeded(session)

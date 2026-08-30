@@ -13,6 +13,8 @@ class TestStatusRoute:
         body = response.json()
         # null until the first-run naming dialog has been completed
         assert body["station_name"] is None
+        # the dashboard reads its display timezone from here, not a hardcode
+        assert body["timezone"] == "Europe/London"
         capture = body["capture"]
         assert capture["source"] == "replay"
         assert capture["mode"] == "multichannel"

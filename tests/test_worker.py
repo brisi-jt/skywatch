@@ -21,7 +21,11 @@ from skywatch.db.models import (
     Setting,
     Transcript,
 )
-from skywatch.pipeline.retention import CAPTURE_PAUSED_KEY
+from skywatch.pipeline.retention import (
+    CAPTURE_PAUSED_KEY,
+    DEEP_TUNE_ACTIVE_KEY,
+    DEEP_TUNE_HEARTBEAT_TTL_S,
+)
 from skywatch.pipeline.worker import PipelineWorker, queue_depths
 from skywatch.providers.asr.base import ASRError, TranscriptionResult
 from skywatch.providers.flightdata.opensky import OpenSkyError
@@ -271,6 +275,41 @@ class TestDiskGuardAndStatus:
         assert source.starts == 1
         with Session(engine) as session:
             assert session.get(Setting, CAPTURE_PAUSED_KEY).value == "0"
+
+    def test_disk_recovery_defers_while_deep_tune_holds_receiver(self, engine, tmp_path):
+        source = FakeSource()
+        source.running = False
+        with Session(engine) as session:
+            session.add(Setting(key=CAPTURE_PAUSED_KEY, value="1"))
+            session.add(Setting(key=DEEP_TUNE_ACTIVE_KEY, value="1"))  # fresh heartbeat
+            session.commit()
+        worker = _worker(engine, tmp_path, capture_source=source, min_free_disk_gb=0.001)
+        worker.tick()
+        # the dongle is held by the deep tune session; the worker must NOT
+        # start rtl_airband on top of it — it defers to that session's exit
+        assert source.starts == 0
+        with Session(engine) as session:
+            # the pause is cleared (disk is fine); resume is simply deferred
+            assert session.get(Setting, CAPTURE_PAUSED_KEY).value == "0"
+
+    def test_disk_recovery_ignores_stale_deep_tune_flag(self, engine, tmp_path):
+        from sqlalchemy import update
+
+        source = FakeSource()
+        source.running = False
+        with Session(engine) as session:
+            session.add(Setting(key=CAPTURE_PAUSED_KEY, value="1"))
+            session.add(Setting(key=DEEP_TUNE_ACTIVE_KEY, value="1"))
+            session.commit()
+            stale = datetime.now(UTC) - timedelta(seconds=DEEP_TUNE_HEARTBEAT_TTL_S + 30)
+            session.exec(
+                update(Setting).where(Setting.key == DEEP_TUNE_ACTIVE_KEY).values(updated_at=stale)
+            )
+            session.commit()
+        worker = _worker(engine, tmp_path, capture_source=source, min_free_disk_gb=0.001)
+        worker.tick()
+        # a crashed API leaves a stale flag; past the TTL it must not block resume
+        assert source.starts == 1
 
     def test_status_snapshot_shape(self, engine, tmp_path):
         _seed_recording(engine, data_root=tmp_path)

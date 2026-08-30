@@ -1,6 +1,45 @@
 """Contract tests for the frequency-plan routes."""
 
+from sqlmodel import Session
+
+from skywatch.db.models import Setting
+from skywatch.pipeline.retention import CAPTURE_PAUSED_KEY
+
 PROBLEM_TYPE = "application/problem+json"
+
+
+def _pause_for_disk(engine) -> None:
+    with Session(engine) as s:
+        s.add(Setting(key=CAPTURE_PAUSED_KEY, value="1"))
+        s.commit()
+
+
+class TestDiskPauseGuard:
+    def test_activate_blocked_while_paused_for_disk(self, client, station, seed):
+        freq = seed.frequency("Guard", 121.5, is_active=False)
+        _pause_for_disk(station.engine)
+
+        response = client.post(f"/frequencies/{freq.id}/activate")
+
+        assert response.status_code == 409
+        assert response.headers["content-type"].startswith(PROBLEM_TYPE)
+        assert response.json()["code"] == "capture_paused_low_disk"
+        # the plan and the capture source were left untouched
+        assert station.source.calls == []
+        from skywatch.db.models import Frequency
+
+        with Session(station.engine) as s:
+            assert s.get(Frequency, freq.id).is_active is False
+
+    def test_deactivate_blocked_while_paused_for_disk(self, client, station, seed):
+        freq = seed.frequency("Guard", 121.5, is_active=True)
+        _pause_for_disk(station.engine)
+
+        response = client.post(f"/frequencies/{freq.id}/deactivate")
+
+        assert response.status_code == 409
+        assert response.json()["code"] == "capture_paused_low_disk"
+        assert station.source.calls == []
 
 
 class TestListFrequencies:

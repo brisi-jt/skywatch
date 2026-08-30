@@ -48,6 +48,18 @@ class ClassifyFailed(RuntimeError):
     """Every provider errored; the stage should be retried later."""
 
 
+def _commit_budget_call(session: Session, provider, day: date) -> None:
+    """Meter one real API call in its own committed transaction.
+
+    Uses a separate session on the same engine so the increment survives even
+    when the caller's classification transaction is later rolled back (e.g. the
+    whole provider chain fails and the stage is retried).
+    """
+    with Session(session.get_bind()) as budget_session:
+        budget.record_call(budget_session, provider, day)
+        budget_session.commit()
+
+
 @dataclass(frozen=True)
 class EvalVerdict:
     """A combined verdict outside the database, for the eval runner."""
@@ -178,7 +190,12 @@ def run_classify(
         if budget.remaining(session, classifier.provider, day, daily_call_cap) <= 0:
             quota_hit = True
             continue
-        budget.record_call(session, classifier.provider, day)
+        # Commit the call against the budget in its own transaction BEFORE the
+        # network request. A real HTTP call was spent, so it must be metered
+        # even if the whole chain then fails and this stage's classification
+        # transaction is rolled back — otherwise the spend is invisible and the
+        # daily cap can be blown by repeated retries.
+        _commit_budget_call(session, classifier.provider, day)
         try:
             verdict = classifier.classify(request)
             break

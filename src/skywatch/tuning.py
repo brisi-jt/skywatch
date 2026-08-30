@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from skywatch.capture.conf_render import render_conf
@@ -116,11 +117,17 @@ class TuningService:
         }
         wrote = False
         for key, value in seeds.items():
-            if session.get(Setting, key) is None:
-                session.add(Setting(key=key, value=value))
+            if session.get(Setting, key) is not None:
+                continue
+            session.add(Setting(key=key, value=value))
+            try:
+                session.commit()
                 wrote = True
-        if wrote:
-            session.commit()
+            except IntegrityError:
+                # another process (the API and the worker both seed on start)
+                # inserted this key between our check and our commit; its value
+                # is authoritative, so roll back and move on
+                session.rollback()
         return wrote
 
     # -- reads -------------------------------------------------------------------

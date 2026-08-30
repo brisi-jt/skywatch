@@ -1,56 +1,82 @@
-/** Station-local presentation: Europe/London, friendly dates, 24-hour times. */
+/** Station-local presentation: friendly dates, 24-hour times.
+ *
+ * The display timezone is the station's own, reported by `/status` rather than
+ * hardcoded. `setDisplayZone` updates it once status loads; until then it falls
+ * back to Europe/London (the shipped default). Formatters are cached per zone. */
 
-const ZONE = "Europe/London";
+const DEFAULT_ZONE = "Europe/London";
 
-const dayFormat = new Intl.DateTimeFormat("en-GB", {
-  timeZone: ZONE,
-  weekday: "long",
-  day: "numeric",
-  month: "long",
-});
+let displayZone = DEFAULT_ZONE;
 
-const weekdayFormat = new Intl.DateTimeFormat("en-GB", {
-  timeZone: ZONE,
-  weekday: "long",
-});
+interface ZoneFormatters {
+  day: Intl.DateTimeFormat;
+  weekday: Intl.DateTimeFormat;
+  time: Intl.DateTimeFormat;
+  isoDay: Intl.DateTimeFormat;
+}
 
-const timeFormat = new Intl.DateTimeFormat("en-GB", {
-  timeZone: ZONE,
-  hour: "2-digit",
-  minute: "2-digit",
-  hour12: false,
-});
+const formatterCache = new Map<string, ZoneFormatters>();
 
-const isoDayFormat = new Intl.DateTimeFormat("en-CA", {
-  timeZone: ZONE,
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-});
+function formatters(): ZoneFormatters {
+  const zone = displayZone;
+  let cached = formatterCache.get(zone);
+  if (!cached) {
+    cached = {
+      day: new Intl.DateTimeFormat("en-GB", {
+        timeZone: zone,
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+      }),
+      weekday: new Intl.DateTimeFormat("en-GB", { timeZone: zone, weekday: "long" }),
+      time: new Intl.DateTimeFormat("en-GB", {
+        timeZone: zone,
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }),
+      isoDay: new Intl.DateTimeFormat("en-CA", {
+        timeZone: zone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }),
+    };
+    formatterCache.set(zone, cached);
+  }
+  return cached;
+}
+
+/** Set the timezone used for every clock and calendar-day format (from /status). */
+export function setDisplayZone(zone: string | null | undefined): void {
+  if (zone) displayZone = zone;
+}
 
 /** "Tuesday 8 July" */
 export function friendlyDate(isoDay: string): string {
-  return dayFormat.format(new Date(`${isoDay}T12:00:00Z`)).replace(",", "");
+  return formatters()
+    .day.format(new Date(`${isoDay}T12:00:00Z`))
+    .replace(",", "");
 }
 
 /** "Tuesday" */
 export function weekday(isoDay: string): string {
-  return weekdayFormat.format(new Date(`${isoDay}T12:00:00Z`));
+  return formatters().weekday.format(new Date(`${isoDay}T12:00:00Z`));
 }
 
 /** "14:07" from a UTC timestamp. */
 export function clockTime(utc: string): string {
-  return timeFormat.format(new Date(ensureUtc(utc)));
+  return formatters().time.format(new Date(ensureUtc(utc)));
 }
 
 /** Today's date in the station's timezone, as YYYY-MM-DD. */
 export function todayIso(): string {
-  return isoDayFormat.format(new Date());
+  return formatters().isoDay.format(new Date());
 }
 
 /** The UTC timestamp's local calendar day, as YYYY-MM-DD. */
 export function localDay(utc: string): string {
-  return isoDayFormat.format(new Date(ensureUtc(utc)));
+  return formatters().isoDay.format(new Date(ensureUtc(utc)));
 }
 
 export function shiftDay(isoDay: string, delta: number): string {

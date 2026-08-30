@@ -20,6 +20,21 @@ import { cn } from "@/lib/utils";
 
 export type ClipCardVariant = "default" | "featured" | "small";
 
+type Vote = "up" | "down";
+
+/** Feedback votes persist per clip so a vote can't be cast twice across a
+ * collapse/expand or a page reload — the server has no per-listener identity. */
+function readVote(id: number): Vote | null {
+  if (typeof window === "undefined") return null;
+  const stored = window.localStorage.getItem(`skywatch.voted.${id}`);
+  return stored === "up" || stored === "down" ? stored : null;
+}
+
+function writeVote(id: number, verdict: Vote): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(`skywatch.voted.${id}`, verdict);
+}
+
 export function ClipCard({
   clip,
   variant = "default",
@@ -212,7 +227,7 @@ function ExpandedBody({
   const { data: detail, isPending, isError } = detailQuery;
   const feedback = useFeedback();
   const reclassify = useReclassify();
-  const [voted, setVoted] = useState<"up" | "down" | null>(null);
+  const [voted, setVoted] = useState<Vote | null>(() => readVote(clip.id));
 
   const latest = detail?.classifications[detail.classifications.length - 1] ?? clip.classification;
 
@@ -284,7 +299,12 @@ function ExpandedBody({
             onClick={() =>
               feedback.mutate(
                 { recordingId: clip.id, verdict: "up" },
-                { onSuccess: () => setVoted("up") },
+                {
+                  onSuccess: () => {
+                    setVoted("up");
+                    writeVote(clip.id, "up");
+                  },
+                },
               )
             }
           >
@@ -299,7 +319,12 @@ function ExpandedBody({
             onClick={() =>
               feedback.mutate(
                 { recordingId: clip.id, verdict: "down" },
-                { onSuccess: () => setVoted("down") },
+                {
+                  onSuccess: () => {
+                    setVoted("down");
+                    writeVote(clip.id, "down");
+                  },
+                },
               )
             }
           >

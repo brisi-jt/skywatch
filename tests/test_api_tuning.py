@@ -57,6 +57,21 @@ class TestGetTuning:
 
 
 class TestApply:
+    def test_apply_blocked_while_paused_for_disk(self, client, station, seed):
+        from skywatch.pipeline.retention import CAPTURE_PAUSED_KEY
+
+        seed.frequency()
+        station.source.calls.clear()
+        with Session(station.engine) as s:
+            s.add(Setting(key=CAPTURE_PAUSED_KEY, value="1"))
+            s.commit()
+
+        response = client.post("/tuning/apply", json=apply_payload())
+
+        assert response.status_code == 409
+        assert response.json()["code"] == "capture_paused_low_disk"
+        assert station.source.calls == []
+
     def test_apply_round_trip(self, client, station, seed):
         freq = seed.frequency()
         station.source.calls.clear()

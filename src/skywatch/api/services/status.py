@@ -133,6 +133,7 @@ def build_status(
 
     return StatusResponse(
         station_name=station_name(session),
+        timezone=settings.server.timezone,
         capture=CaptureStatus(
             source=settings.capture.source,
             mode=settings.capture.mode,

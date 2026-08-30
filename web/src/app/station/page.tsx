@@ -163,7 +163,11 @@ function BudgetGauge({ label, budget }: { label: string; budget: BudgetInfo }) {
 function CaptureTrace({ s }: { s: StatusResponse }) {
   const confState = s.trace.rendered_conf.state;
   const confOk = confState === "match" || confState === "not_applicable";
-  const processOk = s.trace.process.running;
+  // In replay mode the worker owns the fixture player, so there is no radio
+  // process for the API to see — a stopped reading there is expected, not a
+  // fault, and must read neutrally rather than as a red failure.
+  const isReplay = s.capture.source === "replay";
+  const processOk = isReplay || s.trace.process.running;
 
   const steps = [
     {
@@ -194,7 +198,9 @@ function CaptureTrace({ s }: { s: StatusResponse }) {
       title: "The radio process",
       ok: processOk,
       warn: false,
-      body: s.trace.process.detail,
+      body: isReplay
+        ? "Not needed — the station is replaying recordings rather than using the radio."
+        : s.trace.process.detail,
     },
   ];
 

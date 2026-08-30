@@ -3,8 +3,9 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlmodel import select
+from sqlmodel import Session, select
 
+from skywatch.db.engine import session_scope
 from skywatch.db.enums import (
     ApiProvider,
     AsrEngine,
@@ -137,6 +138,30 @@ class TestSkipRules:
         )
         assert clf.calls == 0
         assert row.status is ClassificationStatus.FINAL
+
+
+class TestBudgetIsolation:
+    def test_metered_call_survives_chain_failure_rollback(self, engine, session):
+        """A spent HTTP call must stay metered even when the whole chain fails
+        and the classification transaction rolls back — otherwise repeated
+        retries can blow past the daily cap without the budget noticing."""
+        rec, freq, transcript = _seed(session)
+        today = datetime.now(UTC).date()
+        clf = FakeClassifier(error=True, provider=ApiProvider.GEMINI)
+
+        with pytest.raises(ClassifyFailed), session_scope(engine) as work:
+            run_classify(
+                work,
+                work.get(Recording, rec.id),
+                work.get(Transcript, transcript.id),
+                frequency=work.get(Frequency, freq.id),
+                chain=[clf],
+                daily_call_cap=900,
+            )
+
+        assert clf.calls == 1
+        with Session(engine) as check:
+            assert budget.calls_today(check, ApiProvider.GEMINI, today) == 1
 
 
 class TestVerdicts:

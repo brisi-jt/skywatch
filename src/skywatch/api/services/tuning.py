@@ -28,7 +28,7 @@ from skywatch.api.schemas import (
     TuningApplyResponse,
     TuningResponse,
 )
-from skywatch.api.services.capture import CaptureController
+from skywatch.api.services.capture import CaptureController, reject_if_capture_paused
 from skywatch.api.services.deep_tune import (
     DeepTuneActive,
     DeepTuneChannel,
@@ -190,6 +190,7 @@ def apply_tuning(
             APIErrorCode.DEEP_TUNE_ACTIVE,
             "a deep tune session has the receiver; exit deep tune before applying tuning changes",
         )
+    reject_if_capture_paused(session)
     _validate_apply(session, payload)
     service = TuningService(settings.capture)
     values = TuningValues(
@@ -200,10 +201,10 @@ def apply_tuning(
             override.freq_id: override.squelch_snr_db for override in payload.squelch_overrides
         },
     )
-    service.store(session, values, applied_at=utcnow())
-
-    has_active = session.exec(select(Frequency).where(Frequency.is_active)).first() is not None
-    restarted, warning = capture.restart(has_active=has_active)
+    with capture.restart_lock:
+        service.store(session, values, applied_at=utcnow())
+        has_active = session.exec(select(Frequency).where(Frequency.is_active)).first() is not None
+        restarted, warning = capture.restart(has_active=has_active)
 
     view = tuning_view(session, settings, deep_tune=deep_tune)
     return TuningApplyResponse(

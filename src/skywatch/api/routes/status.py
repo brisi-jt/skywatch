@@ -27,7 +27,8 @@ router = APIRouter(tags=["status"])
         "pinpoints where a frequency change stalled, pipeline queue depths "
         "per stage, disk headroom, and today's spend against the external "
         "API budgets. `station_name` is null until the owner names the "
-        "station — the cue for a first-run naming dialog."
+        "station — the cue for a first-run naming dialog. `timezone` is the "
+        "IANA zone the dashboard formats local times and calendar days in."
     ),
 )
 def get_status(

@@ -94,6 +94,7 @@ export function WsProvider({ children }: { children: React.ReactNode }) {
   const [connected, setConnected] = useState(true);
   const [pendingNewClips, setPendingNewClips] = useState(0);
   const retryRef = useRef(0);
+  const firstConnectRef = useRef(true);
   const newRecordingListeners = useRef(new Set<(summary: RecordingSummary) => void>());
   const spectrumListeners = useRef(new Set<(frame: SpectrumFrame) => void>());
   const deepTuneListeners = useRef(new Set<(event: DeepTuneStateEvent) => void>());
@@ -169,22 +170,36 @@ export function WsProvider({ children }: { children: React.ReactNode }) {
     };
 
     const patchLists = (summary: RecordingSummary) => {
-      queryClient.setQueriesData<{ pages: RecordingListResponse[]; pageParams: number[] }>(
-        { queryKey: ["recordings"] },
-        (data) => {
-          if (!data?.pages) return data;
-          let touched = false;
-          const pages = data.pages.map((page) => {
-            const idx = page.items.findIndex((item) => item.id === summary.id);
-            if (idx === -1) return page;
-            touched = true;
-            const items = [...page.items];
-            items[idx] = summary;
-            return { ...page, items };
-          });
-          return touched ? { ...data, pages } : data;
-        },
-      );
+      // Patch the updated clip into every cached recordings list it already
+      // appears in. When a routine clip flips to interesting it will be ABSENT
+      // from an interesting-filtered cache (it was filtered out while routine),
+      // so a plain replace never surfaces it — invalidate that filtered query
+      // instead so it refetches and folds the newly-interesting clip in.
+      const isInteresting = summary.classification?.is_interesting ?? false;
+      const queries = queryClient
+        .getQueryCache()
+        .findAll({ queryKey: ["recordings"] });
+      for (const query of queries) {
+        const filters = (query.queryKey[1] ?? {}) as { interesting?: boolean };
+        const data = query.state.data as
+          | { pages: RecordingListResponse[]; pageParams: number[] }
+          | undefined;
+        if (!data?.pages) continue;
+        let found = false;
+        const pages = data.pages.map((page) => {
+          const idx = page.items.findIndex((item) => item.id === summary.id);
+          if (idx === -1) return page;
+          found = true;
+          const items = [...page.items];
+          items[idx] = summary;
+          return { ...page, items };
+        });
+        if (found) {
+          queryClient.setQueryData(query.queryKey, { ...data, pages });
+        } else if (isInteresting && filters.interesting) {
+          queryClient.invalidateQueries({ queryKey: query.queryKey });
+        }
+      }
     };
 
     const connect = () => {
@@ -198,6 +213,18 @@ export function WsProvider({ children }: { children: React.ReactNode }) {
       socket.onopen = () => {
         retryRef.current = 0;
         setConnected(true);
+        if (firstConnectRef.current) {
+          firstConnectRef.current = false;
+          return;
+        }
+        // Reconnected after a drop: any stream events during the gap were
+        // missed, so refetch everything the stream keeps live rather than
+        // leaving the client on stale data until the next manual navigation.
+        queryClient.invalidateQueries({ queryKey: ["recordings"] });
+        queryClient.invalidateQueries({ queryKey: ["recordings-any"] });
+        queryClient.invalidateQueries({ queryKey: ["status"] });
+        queryClient.invalidateQueries({ queryKey: ["digest"] });
+        queryClient.invalidateQueries({ queryKey: ["tuning"] });
       };
       socket.onmessage = (message) => {
         try {

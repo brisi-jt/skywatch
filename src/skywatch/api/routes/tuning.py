@@ -70,7 +70,10 @@ def get_tuning(
     responses={
         409: {
             "model": ProblemDetail,
-            "description": "A deep tune session has the receiver; stop it first.",
+            "description": (
+                "A deep tune session has the receiver (stop it first), or "
+                "capture is paused for low disk (code `capture_paused_low_disk`)."
+            ),
         },
         422: {
             "model": ProblemDetail,

@@ -193,6 +193,10 @@ export function useReclassify() {
     },
     onSuccess: (_data, recordingId) => {
       queryClient.invalidateQueries({ queryKey: ["recording", recordingId] });
+      // a re-look can flip the verdict, so the lists and today's digest that
+      // render it must refetch too
+      queryClient.invalidateQueries({ queryKey: ["recordings"] });
+      queryClient.invalidateQueries({ queryKey: ["digest"] });
     },
   });
 }

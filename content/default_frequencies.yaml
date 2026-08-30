@@ -13,7 +13,7 @@
 # only and never overwrites it afterwards.
 
 frequencies:
-  - label: "Guard 121.500"
+  - label: "Guard (emergency)"
     mhz: 121.5
     mode: am
     facility: "International aeronautical emergency"

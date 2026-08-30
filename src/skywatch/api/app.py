@@ -40,7 +40,8 @@ from skywatch.api.services.recordings import build_summaries
 from skywatch.api.services.status import build_status
 from skywatch.api.ws import ChangePoller, StreamHub, run_poller
 from skywatch.db.engine import create_db_engine, default_db_path
-from skywatch.db.models import Frequency, Recording
+from skywatch.db.models import Frequency, Recording, Setting, utcnow
+from skywatch.pipeline.retention import DEEP_TUNE_ACTIVE_KEY
 from skywatch.settings import Settings
 from skywatch.tuning import TuningService
 
@@ -154,12 +155,27 @@ def create_app(
             )
         capture.restart(has_active=has_active)
 
+    def _set_deep_tune_flag(active: bool) -> None:
+        # the worker reads this to avoid starting rtl_airband while a deep
+        # tune session holds the dongle; updated_at is the heartbeat
+        with Session(engine) as session:
+            row = session.get(Setting, DEEP_TUNE_ACTIVE_KEY)
+            value = "1" if active else "0"
+            if row is None:
+                session.add(Setting(key=DEEP_TUNE_ACTIVE_KEY, value=value))
+            else:
+                row.value = value
+                row.updated_at = utcnow()  # force a heartbeat even when unchanged
+                session.add(row)
+            session.commit()
+
     deep_tune = DeepTuneManager(
         source_factory=deep_tune_factory or PyRtlSdrSourceFactory(),
         publish=_publish_event,
         stop_capture=capture.stop,
         restart_capture=_restart_capture,
         clients_connected=lambda: hub.client_count > 0,
+        set_active_flag=_set_deep_tune_flag,
     )
 
     @contextlib.asynccontextmanager

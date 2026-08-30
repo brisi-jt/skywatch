@@ -22,6 +22,15 @@ logger = logging.getLogger(__name__)
 CAPTURE_PAUSED_KEY = "capture.paused_for_disk"
 """Settings-table key the worker writes ("1"/"0") when the disk guard trips."""
 
+DEEP_TUNE_ACTIVE_KEY = "deep_tune.active"
+"""Cross-process flag the API writes ("1"/"0") while a deep tune session holds
+the receiver. The row's ``updated_at`` doubles as a heartbeat: a stale flag
+(no heartbeat within the TTL) is treated as inactive so a crashed API process
+cannot strand the worker's disk-recovery resume forever."""
+
+DEEP_TUNE_HEARTBEAT_TTL_S = 90.0
+"""A deep-tune-active flag older than this without a heartbeat is ignored."""
+
 _BYTES_PER_GB = 1024**3
 
 

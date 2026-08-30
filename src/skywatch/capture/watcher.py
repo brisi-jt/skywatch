@@ -105,7 +105,12 @@ def probe_mp3(path: Path) -> Mp3Info:
 
 
 def _match_frequency(session: Session, freq_hz: int) -> Frequency | None:
-    rows: Sequence[Frequency] = session.exec(select(Frequency)).all()
+    # Only active frequencies are being recorded, so a clip must belong to one.
+    # Matching an inactive row would revive a channel the operator switched off
+    # (e.g. a stray file left over from a previous plan).
+    rows: Sequence[Frequency] = session.exec(
+        select(Frequency).where(Frequency.is_active)  # type: ignore[arg-type]
+    ).all()
     best: Frequency | None = None
     best_delta = FREQ_MATCH_TOLERANCE_HZ + 1
     for row in rows:
@@ -198,13 +203,19 @@ class RecordingWatcher:
         data_root: Path,
         settle_seconds: float = 2.0,
         poll_interval: float = 0.5,
+        max_ingest_attempts: int = 5,
     ) -> None:
         self._engine = engine
         self._recordings_dir = Path(recordings_dir)
         self._data_root = Path(data_root)
         self._settle_seconds = settle_seconds
         self._poll_interval = poll_interval
+        self._max_ingest_attempts = max(1, max_ingest_attempts)
+        # path -> (last-seen size, monotonic time it becomes eligible to ingest)
         self._pending: dict[Path, tuple[int, float]] = {}
+        # path -> failed ingest attempts, so a transient error backs off and
+        # retries instead of dropping the clip
+        self._ingest_attempts: dict[Path, int] = {}
         self._lock = threading.Lock()
         self._stop_event = threading.Event()
         self._observer: Observer | None = None
@@ -221,7 +232,7 @@ class RecordingWatcher:
         with self._lock:
             current = self._pending.get(path)
             if current is None or current[0] != size:
-                self._pending[path] = (size, time.monotonic())
+                self._pending[path] = (size, time.monotonic() + self._settle_seconds)
 
     def scan_existing(self) -> None:
         """Queue clips already on disk (e.g. written while we were down)."""
@@ -232,27 +243,60 @@ class RecordingWatcher:
         now = time.monotonic()
         ready: list[Path] = []
         with self._lock:
-            for path, (size, last_change) in list(self._pending.items()):
+            for path, (size, ready_at) in list(self._pending.items()):
                 try:
                     current_size = path.stat().st_size
                 except OSError:
                     del self._pending[path]  # vanished before it settled
+                    self._ingest_attempts.pop(path, None)
                     continue
                 if current_size != size:
-                    self._pending[path] = (current_size, now)
-                elif now - last_change >= self._settle_seconds:
+                    self._pending[path] = (current_size, now + self._settle_seconds)
+                elif now >= ready_at:
                     ready.append(path)
                     del self._pending[path]
         return ready
 
+    def _requeue_failed(self, path: Path) -> None:
+        """Re-queue a clip whose ingest raised, with a capped exponential
+        backoff. Once the cap is reached the clip is abandoned with a loud
+        log rather than retried forever."""
+        attempts = self._ingest_attempts.get(path, 0) + 1
+        if attempts >= self._max_ingest_attempts:
+            logger.error("giving up on %s after %d ingest attempts", path, attempts)
+            self._ingest_attempts.pop(path, None)
+            return
+        self._ingest_attempts[path] = attempts
+        try:
+            size = path.stat().st_size
+        except OSError:
+            self._ingest_attempts.pop(path, None)  # vanished; nothing to retry
+            return
+        backoff = self._settle_seconds * (2 ** (attempts - 1))
+        with self._lock:
+            self._pending[path] = (size, time.monotonic() + backoff)
+
+    def _process_settled(self) -> None:
+        """One ingest pass: attempt every settled clip, re-queuing failures.
+
+        A clip is only removed from tracking once its ingest returns (whether
+        it produced a row or was a legitimate skip). An ingest that raises is
+        re-queued with backoff, so a transient database error never silently
+        drops a captured clip.
+        """
+        for path in self._settled():
+            try:
+                with session_scope(self._engine) as session:
+                    ingest_recording(session, path=path, data_root=self._data_root)
+            except Exception:
+                logger.exception("failed to ingest %s; will retry", path)
+                self._requeue_failed(path)
+            else:
+                self._ingest_attempts.pop(path, None)
+
     def _run(self) -> None:
         while not self._stop_event.wait(self._poll_interval):
-            for path in self._settled():
-                try:
-                    with session_scope(self._engine) as session:
-                        ingest_recording(session, path=path, data_root=self._data_root)
-                except Exception:
-                    logger.exception("failed to ingest %s", path)
+            self._process_settled()
 
     def start(self) -> None:
         if self._thread is not None and self._thread.is_alive():

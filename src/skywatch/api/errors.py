@@ -36,6 +36,7 @@ class APIErrorCode(StrEnum):
     AUDIO_DELETED = "audio_deleted"
     AUDIO_FILE_MISSING = "audio_file_missing"
     WINDOW_CONFLICT = "window_conflict"
+    CAPTURE_PAUSED_LOW_DISK = "capture_paused_low_disk"
     UNKNOWN_SETTING_KEY = "unknown_setting_key"
     INVALID_SETTING_VALUE = "invalid_setting_value"
     TUNING_INVALID_VALUE = "tuning_invalid_value"

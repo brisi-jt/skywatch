@@ -252,6 +252,8 @@ class DeepTuneManager:
         stop_capture: Callable[[], None],
         restart_capture: Callable[[], None],
         clients_connected: Callable[[], bool],
+        set_active_flag: Callable[[bool], None] | None = None,
+        heartbeat_interval_s: float = 15.0,
         clock: Callable[[], float] = time.monotonic,
         sleep: Callable[[float], None] | None = None,
         thread_factory: Callable[..., Any] = threading.Thread,
@@ -267,6 +269,11 @@ class DeepTuneManager:
         self._stop_capture = stop_capture
         self._restart_capture = restart_capture
         self._clients_connected = clients_connected
+        # writes the cross-process "deep tune holds the receiver" flag so the
+        # worker's disk-recovery resume does not start rtl_airband on top of us
+        self._set_active_flag = set_active_flag or (lambda _active: None)
+        self._heartbeat_interval_s = heartbeat_interval_s
+        self._last_heartbeat = 0.0
         self._clock = clock
         self._thread_factory = thread_factory
         self._idle_timeout_s = idle_timeout_s
@@ -336,6 +343,8 @@ class DeepTuneManager:
             self._warning_sent = False
             self._stop_event.clear()
         try:
+            self._last_heartbeat = now
+            self._write_active_flag(True)
             self._stop_capture()
             thread = self._thread_factory(target=self._run, args=(config,), daemon=True)
             self._thread = thread
@@ -343,6 +352,7 @@ class DeepTuneManager:
         except BaseException:
             with self._lock:
                 self._active = False
+            self._write_active_flag(False)
             self._safe_restart_capture()
             raise
 
@@ -390,6 +400,7 @@ class DeepTuneManager:
                     iq = source.read(self._samples_per_frame)
                     frame = build_frame(iq, config, nfft=self._nfft)
                     self._publish({"type": "spectrum.frame", "payload": frame})
+                    self._maybe_heartbeat()
                     self._sleep(self._frame_interval_s)
             finally:
                 with contextlib.suppress(Exception):
@@ -398,6 +409,7 @@ class DeepTuneManager:
             logger.exception("deep tune session failed; restarting capture")
             reason = "error"
         finally:
+            self._write_active_flag(False)
             self._safe_restart_capture()
             with self._lock:
                 self._active = False
@@ -428,6 +440,19 @@ class DeepTuneManager:
             self._restart_capture()
         except Exception:
             logger.exception("capture restart after deep tune failed")
+
+    def _write_active_flag(self, active: bool) -> None:
+        try:
+            self._set_active_flag(active)
+        except Exception:
+            logger.exception("deep tune active-flag write failed")
+
+    def _maybe_heartbeat(self) -> None:
+        """Refresh the active flag periodically so the worker sees it as fresh."""
+        now = self._clock()
+        if now - self._last_heartbeat >= self._heartbeat_interval_s:
+            self._last_heartbeat = now
+            self._write_active_flag(True)
 
     def _publish(self, message: dict) -> None:
         try:

@@ -14,7 +14,7 @@ from skywatch.api.schemas import (
     FrequencyResource,
     Link,
 )
-from skywatch.api.services.capture import CaptureController
+from skywatch.api.services.capture import CaptureController, reject_if_capture_paused
 from skywatch.api.services.deep_tune import DeepTuneManager
 from skywatch.capture.validate import validate_frequencies
 from skywatch.db.models import Frequency
@@ -105,15 +105,18 @@ def list_frequencies(
         "transmissions. Activating an already-active frequency changes "
         "nothing. While a deep tune session holds the receiver the plan "
         "cannot change: the response is a 409 problem detail with code "
-        "`deep_tune_active`."
+        "`deep_tune_active`. While the disk-space guard has capture paused "
+        "the plan is likewise frozen: the response is a 409 problem detail "
+        "with code `capture_paused_low_disk`, and the station resumes on its "
+        "own once free space recovers."
     ),
     responses={
         404: {"model": ProblemDetail, "description": "Unknown frequency."},
         409: {
             "model": ProblemDetail,
             "description": (
-                "The active set would not fit one tuner window, or a deep "
-                "tune session has the receiver."
+                "The active set would not fit one tuner window, a deep tune "
+                "session has the receiver, or capture is paused for low disk."
             ),
         },
     },
@@ -126,32 +129,36 @@ def activate_frequency(
     deep_tune: Annotated[DeepTuneManager, Depends(get_deep_tune)],
 ) -> FrequencyActionResponse:
     _reject_while_deep_tune_active(deep_tune)
+    reject_if_capture_paused(session)
     freq = _get_frequency(session, freq_id)
     if freq.is_active:
         return FrequencyActionResponse(
             frequency=_resource(freq), warnings=[], capture_restarted=False
         )
 
-    active = session.exec(select(Frequency).where(Frequency.is_active)).all()
-    prospective = list(active) + [freq]
-    validation = validate_frequencies(prospective, settings.capture.mode)
-    if not validation.ok:
-        raise ProblemException(
-            status.HTTP_409_CONFLICT,
-            APIErrorCode.WINDOW_CONFLICT,
-            " ".join(validation.errors),
-            extensions={
-                "offenders": validation.offenders,
-                "suggested_centerfreq_mhz": validation.suggested_centerfreq_mhz,
-            },
-        )
+    # Hold the restart lock across read → validate → commit → restart so a
+    # concurrent plan change cannot slip in between the check and the restart.
+    with capture.restart_lock:
+        active = session.exec(select(Frequency).where(Frequency.is_active)).all()
+        prospective = list(active) + [freq]
+        validation = validate_frequencies(prospective, settings.capture.mode)
+        if not validation.ok:
+            raise ProblemException(
+                status.HTTP_409_CONFLICT,
+                APIErrorCode.WINDOW_CONFLICT,
+                " ".join(validation.errors),
+                extensions={
+                    "offenders": validation.offenders,
+                    "suggested_centerfreq_mhz": validation.suggested_centerfreq_mhz,
+                },
+            )
 
-    freq.is_active = True
-    session.add(freq)
-    session.commit()
-    session.refresh(freq)
+        freq.is_active = True
+        session.add(freq)
+        session.commit()
+        session.refresh(freq)
 
-    restarted, warning = capture.restart(has_active=True)
+        restarted, warning = capture.restart(has_active=True)
     warnings = list(validation.warnings)
     if warning:
         warnings.append(warning)
@@ -171,13 +178,17 @@ def activate_frequency(
         "until something is activated again. Deactivating an already-inactive "
         "frequency changes nothing. While a deep tune session holds the "
         "receiver the plan cannot change: the response is a 409 problem "
-        "detail with code `deep_tune_active`."
+        "detail with code `deep_tune_active`. While the disk-space guard has "
+        "capture paused the plan is likewise frozen: the response is a 409 "
+        "problem detail with code `capture_paused_low_disk`."
     ),
     responses={
         404: {"model": ProblemDetail, "description": "Unknown frequency."},
         409: {
             "model": ProblemDetail,
-            "description": "A deep tune session has the receiver.",
+            "description": (
+                "A deep tune session has the receiver, or capture is paused for low disk."
+            ),
         },
     },
 )
@@ -189,20 +200,22 @@ def deactivate_frequency(
     deep_tune: Annotated[DeepTuneManager, Depends(get_deep_tune)],
 ) -> FrequencyActionResponse:
     _reject_while_deep_tune_active(deep_tune)
+    reject_if_capture_paused(session)
     freq = _get_frequency(session, freq_id)
     if not freq.is_active:
         return FrequencyActionResponse(
             frequency=_resource(freq), warnings=[], capture_restarted=False
         )
 
-    freq.is_active = False
-    session.add(freq)
-    session.commit()
-    session.refresh(freq)
+    with capture.restart_lock:
+        freq.is_active = False
+        session.add(freq)
+        session.commit()
+        session.refresh(freq)
 
-    remaining = session.exec(select(Frequency).where(Frequency.is_active)).all()
-    validation = validate_frequencies(list(remaining), settings.capture.mode)
-    restarted, warning = capture.restart(has_active=bool(remaining))
+        remaining = session.exec(select(Frequency).where(Frequency.is_active)).all()
+        validation = validate_frequencies(list(remaining), settings.capture.mode)
+        restarted, warning = capture.restart(has_active=bool(remaining))
     warnings = list(validation.warnings) if remaining else list(validation.errors)
     if warning:
         warnings.append(warning)

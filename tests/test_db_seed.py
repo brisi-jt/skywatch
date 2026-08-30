@@ -55,6 +55,7 @@ def test_seed_inserts_full_default_plan(engine):
     guard = next(r for r in rows if r.mhz == 121.5)
     assert guard.verified is True
     assert guard.is_active is True
+    assert guard.label == "Guard (emergency)"
     assert all(r.verified is False for r in rows if r.mhz != 121.5)
 
 
