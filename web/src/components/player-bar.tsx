@@ -12,7 +12,9 @@ import {
   X,
 } from "lucide-react";
 
+import { Waveform } from "@/components/waveform";
 import { Button } from "@/components/ui/button";
+import { usePeaks } from "@/lib/api/hooks";
 import { durationLabel } from "@/lib/format";
 import { usePlayer, type PlaybackRate } from "@/lib/player";
 import { cn } from "@/lib/utils";
@@ -23,6 +25,9 @@ const RATES: PlaybackRate[] = [1, 0.75, 0.5];
 export function PlayerBar() {
   const player = usePlayer();
   const reducedMotion = useReducedMotion();
+  const { data: waveform } = usePeaks(player.clip?.id ?? null);
+  const peaks = waveform?.peaks ?? [];
+  const progress = player.duration > 0 ? player.position / player.duration : 0;
 
   return (
     <AnimatePresence>
@@ -94,16 +99,32 @@ export function PlayerBar() {
               <span className="font-mono text-sm text-muted-foreground tabular-nums">
                 {durationLabel(player.position)}
               </span>
-              <input
-                type="range"
-                min={0}
-                max={Math.max(player.duration, 0.1)}
-                step={0.1}
-                value={Math.min(player.position, player.duration || 0)}
-                onChange={(event) => player.seekTo(Number(event.target.value))}
-                aria-label="Seek"
-                className="h-10 flex-1 accent-(--interesting)"
-              />
+              {peaks.length > 0 ? (
+                <div className="relative h-10 flex-1">
+                  <Waveform peaks={peaks} progress={progress} className="absolute inset-0 h-full w-full" />
+                  <input
+                    type="range"
+                    min={0}
+                    max={Math.max(player.duration, 0.1)}
+                    step={0.1}
+                    value={Math.min(player.position, player.duration || 0)}
+                    onChange={(event) => player.seekTo(Number(event.target.value))}
+                    aria-label="Seek"
+                    className="waveform-range absolute inset-0 h-10 w-full"
+                  />
+                </div>
+              ) : (
+                <input
+                  type="range"
+                  min={0}
+                  max={Math.max(player.duration, 0.1)}
+                  step={0.1}
+                  value={Math.min(player.position, player.duration || 0)}
+                  onChange={(event) => player.seekTo(Number(event.target.value))}
+                  aria-label="Seek"
+                  className="h-10 flex-1 accent-(--interesting)"
+                />
+              )}
               <span className="font-mono text-sm text-muted-foreground tabular-nums">
                 {durationLabel(player.duration)}
               </span>

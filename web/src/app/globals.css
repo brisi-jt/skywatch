@@ -259,6 +259,38 @@
   }
 }
 
+/* Scrubber laid over the waveform canvas: a transparent track so the waveform
+ * shows through, with a thin vertical playhead thumb. */
+.waveform-range {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+.waveform-range::-webkit-slider-runnable-track {
+  background: transparent;
+  height: 100%;
+}
+.waveform-range::-moz-range-track {
+  background: transparent;
+  height: 100%;
+}
+.waveform-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 3px;
+  height: 2.5rem;
+  border-radius: 2px;
+  background: var(--foreground);
+}
+.waveform-range::-moz-range-thumb {
+  width: 3px;
+  height: 2.5rem;
+  border: none;
+  border-radius: 2px;
+  background: var(--foreground);
+}
+
 /* Mount-only clip stagger: each card rises in once when the list first paints.
  * Applied only on the first render with clips (ref-latched in the page), so a
  * WS fold-in never re-triggers the whole list. */

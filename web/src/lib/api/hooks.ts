@@ -120,6 +120,22 @@ export function useRecordings(filters: ClipFilters) {
   });
 }
 
+/** A clip's waveform peaks for the scrubber; cached indefinitely per clip. */
+export function usePeaks(id: number | null) {
+  return useQuery({
+    queryKey: ["peaks", id],
+    queryFn: async () => {
+      const result = await api.GET("/recordings/{recording_id}/peaks", {
+        params: { path: { recording_id: id! } },
+      });
+      return unwrap(result);
+    },
+    enabled: id != null,
+    staleTime: Infinity,
+    retry: false,
+  });
+}
+
 export function useRecordingDetail(id: number, enabled: boolean) {
   return useQuery({
     queryKey: ["recording", id],
