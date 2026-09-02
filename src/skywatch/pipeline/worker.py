@@ -622,6 +622,7 @@ def build_worker(settings: Settings, engine=None) -> PipelineWorker:
     from skywatch.capture.stats import default_stats_path
     from skywatch.capture.watcher import RecordingWatcher
     from skywatch.providers.asr import create_asr_engine
+    from skywatch.providers.flightdata.aircraft_db import AircraftDb
     from skywatch.providers.flightdata.airlines import AirlineDirectory
     from skywatch.providers.flightdata.opensky import OpenSkyClient, OpenSkyEnricher
     from skywatch.providers.flightdata.plane_alert import PlaneAlertDb
@@ -645,6 +646,7 @@ def build_worker(settings: Settings, engine=None) -> PipelineWorker:
     )
     airlines = AirlineDirectory.load(_repo_relative("content") / "airlines.dat")
     plane_alert = PlaneAlertDb.load(_repo_relative("content") / "plane_alert_db.csv")
+    aircraft_db = AircraftDb.load(data_root / "aircraft_db.csv")
 
     enricher = None
     if settings.enrichment.provider == "opensky":
@@ -665,6 +667,7 @@ def build_worker(settings: Settings, engine=None) -> PipelineWorker:
                 daily_credit_cap=settings.enrichment.daily_credit_cap,
                 airlines=airlines,
                 plane_alert=plane_alert,
+                aircraft_db=aircraft_db,
             )
 
     watcher = RecordingWatcher(engine, recordings_dir, data_root=data_root)

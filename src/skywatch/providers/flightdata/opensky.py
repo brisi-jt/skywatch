@@ -235,6 +235,7 @@ class OpenSkyEnricher:
         candidate_limit: int = 5,
         cache_size: int = 32,
         plane_alert=None,
+        aircraft_db=None,
     ) -> None:
         self._client = client
         self._receiver_lat = receiver_lat
@@ -244,6 +245,7 @@ class OpenSkyEnricher:
         self.daily_credit_cap = daily_credit_cap
         self._airlines = airlines
         self._plane_alert = plane_alert
+        self._aircraft_db = aircraft_db
         self._candidate_limit = candidate_limit
         self._cache_size = cache_size
         self._bbox = bbox_around(receiver_lat, receiver_lon, radius_km)
@@ -290,6 +292,7 @@ class OpenSkyEnricher:
         for candidate in candidates:
             state = candidate.state
             airline = self._airlines.lookup_callsign(state.callsign)
+            identity = self._aircraft_db.lookup(state.icao24) if self._aircraft_db else None
             match = AircraftMatch(
                 recording_id=recording.id,
                 source=FlightDataSource.OPENSKY,
@@ -297,6 +300,9 @@ class OpenSkyEnricher:
                 callsign=state.callsign,
                 airline_name=airline.name if airline else None,
                 flight_number_guess=flight_number_guess(state.callsign, airline),
+                registration=identity.registration if identity else None,
+                aircraft_type=identity.aircraft_type if identity else None,
+                operator_name=identity.operator_name if identity else None,
                 lat=state.lat,
                 lon=state.lon,
                 alt_ft=state.baro_alt_m * M_TO_FT if state.baro_alt_m is not None else None,

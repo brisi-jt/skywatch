@@ -198,6 +198,16 @@ class AircraftMatchResource(BaseModel):
             "from the plane-alert database, or null when the aircraft is not listed."
         ),
     )
+    registration: str | None = Field(
+        default=None, description="Tail number from the aircraft database, when known."
+    )
+    aircraft_type: str | None = Field(
+        default=None,
+        description="ICAO type code (e.g. A320) from the aircraft database, when known.",
+    )
+    operator_name: str | None = Field(
+        default=None, description="Operator from the aircraft database, when known."
+    )
 
 
 class FeedbackCounts(BaseModel):

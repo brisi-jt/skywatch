@@ -511,6 +511,21 @@ export interface components {
              * @description A curated 'interesting airframe' category (e.g. Military, Historic) from the plane-alert database, or null when the aircraft is not listed.
              */
             alert_category?: string | null;
+            /**
+             * Registration
+             * @description Tail number from the aircraft database, when known.
+             */
+            registration?: string | null;
+            /**
+             * Aircraft Type
+             * @description ICAO type code (e.g. A320) from the aircraft database, when known.
+             */
+            aircraft_type?: string | null;
+            /**
+             * Operator Name
+             * @description Operator from the aircraft database, when known.
+             */
+            operator_name?: string | null;
         };
         /**
          * AppliedTuning

@@ -41,6 +41,12 @@ the data itself is under the Database Contents License 1.0.
 ICAO hex. The repository ships only the header; run
 `scripts/update_plane_alert_db.sh` to download the current list.
 
+Probable-aircraft identity (registration, type, operator) comes from the
+[OpenSky Network aircraft database](https://opensky-network.org/data/aircraft).
+It is large and never committed; run `scripts/fetch_aircraft_db.sh` to download
+it to `data/aircraft_db.csv`. Please cite the OpenSky Network as its authors
+request when redistributing derived data.
+
 ## Quickstart
 
 Requires Python 3.12 managed by [uv](https://docs.astral.sh/uv/).

@@ -9,9 +9,12 @@ import { cn } from "@/lib/utils";
 export function TierChip({ match, className }: { match: AircraftMatchResource; className?: string }) {
   const tier = matchTier(match.match_confidence);
   const who = match.callsign?.trim() || match.icao24.toUpperCase();
+  const operator = match.operator_name || match.airline_name;
+  const operatorType = [operator, match.aircraft_type].filter(Boolean).join(" ");
   const parts = [
     match.flight_number_guess ? `${who} (maybe ${match.flight_number_guess})` : who,
-    match.airline_name,
+    operatorType || null,
+    match.registration,
     `${Math.round(match.distance_km)} km away`,
   ].filter(Boolean);
 

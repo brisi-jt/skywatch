@@ -320,4 +320,7 @@ def _match_resource(row: AircraftMatch) -> AircraftMatchResource:
         rank=row.rank,
         queried_at=row.queried_at,
         alert_category=row.alert_category,
+        registration=row.registration,
+        aircraft_type=row.aircraft_type,
+        operator_name=row.operator_name,
     )

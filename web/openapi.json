@@ -1269,6 +1269,42 @@
             ],
             "title": "Alert Category",
             "description": "A curated 'interesting airframe' category (e.g. Military, Historic) from the plane-alert database, or null when the aircraft is not listed."
+          },
+          "registration": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Registration",
+            "description": "Tail number from the aircraft database, when known."
+          },
+          "aircraft_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aircraft Type",
+            "description": "ICAO type code (e.g. A320) from the aircraft database, when known."
+          },
+          "operator_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operator Name",
+            "description": "Operator from the aircraft database, when known."
           }
         },
         "type": "object",
