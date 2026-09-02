@@ -1132,6 +1132,28 @@
           }
         }
       }
+    },
+    "/eval/feedback": {
+      "get": {
+        "tags": [
+          "eval"
+        ],
+        "summary": "Classifier accuracy against listener feedback",
+        "description": "Measures the classifier's interesting/routine verdict against listener votes as ground truth: for every clip that has both a verdict and at least one vote, a majority of thumbs-up counts as 'worth hearing'. Returns precision and recall (null until there is anything to divide) plus the full list of clips where the classifier and listeners disagreed \u2014 the clips most worth adding to the evaluation set.",
+        "operationId": "get_feedback_eval_eval_feedback_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvalFeedbackResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1930,6 +1952,144 @@
         ],
         "title": "DocumentResponse",
         "description": "A station document as raw Markdown for the client to render."
+      },
+      "EvalDisagreement": {
+        "properties": {
+          "_links": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "type": "object",
+            "title": "Links",
+            "description": "HAL links: self plus related resources and the actions currently available on this resource."
+          },
+          "recording_id": {
+            "type": "integer",
+            "title": "Recording Id"
+          },
+          "classified_interesting": {
+            "type": "boolean",
+            "title": "Classified Interesting",
+            "description": "The classifier's latest verdict."
+          },
+          "category": {
+            "$ref": "#/components/schemas/ClassificationCategory"
+          },
+          "human_interesting": {
+            "type": "boolean",
+            "title": "Human Interesting",
+            "description": "What the listeners' votes say: more thumbs-up than thumbs-down."
+          },
+          "feedback_up": {
+            "type": "integer",
+            "title": "Feedback Up"
+          },
+          "feedback_down": {
+            "type": "integer",
+            "title": "Feedback Down"
+          },
+          "transcript_snippet": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transcript Snippet"
+          }
+        },
+        "type": "object",
+        "required": [
+          "recording_id",
+          "classified_interesting",
+          "category",
+          "human_interesting",
+          "feedback_up",
+          "feedback_down",
+          "transcript_snippet"
+        ],
+        "title": "EvalDisagreement",
+        "description": "One clip where the classifier and the listeners disagreed."
+      },
+      "EvalFeedbackResponse": {
+        "properties": {
+          "_links": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "type": "object",
+            "title": "Links",
+            "description": "HAL links: self plus related resources and the actions currently available on this resource."
+          },
+          "sample_size": {
+            "type": "integer",
+            "title": "Sample Size",
+            "description": "Clips with both feedback and a classification."
+          },
+          "precision": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Precision",
+            "description": "Of the clips the classifier flagged, the share listeners agreed with."
+          },
+          "recall": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recall",
+            "description": "Of the clips listeners liked, the share the classifier flagged."
+          },
+          "true_positives": {
+            "type": "integer",
+            "title": "True Positives"
+          },
+          "false_positives": {
+            "type": "integer",
+            "title": "False Positives"
+          },
+          "false_negatives": {
+            "type": "integer",
+            "title": "False Negatives"
+          },
+          "true_negatives": {
+            "type": "integer",
+            "title": "True Negatives"
+          },
+          "disagreements": {
+            "items": {
+              "$ref": "#/components/schemas/EvalDisagreement"
+            },
+            "type": "array",
+            "title": "Disagreements",
+            "description": "Every clip where the classifier and listeners diverged, newest first."
+          }
+        },
+        "type": "object",
+        "required": [
+          "sample_size",
+          "precision",
+          "recall",
+          "true_positives",
+          "false_positives",
+          "false_negatives",
+          "true_negatives",
+          "disagreements"
+        ],
+        "title": "EvalFeedbackResponse",
+        "description": "The classifier measured against listener feedback as ground truth.\n\nOnly clips that have at least one vote and a settled verdict are counted;\na listener's votes are treated as truth (more up than down = worth\nhearing). Precision and recall are null until there is anything to divide."
       },
       "FactoryTuning": {
         "properties": {

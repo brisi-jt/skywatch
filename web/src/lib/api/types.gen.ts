@@ -448,6 +448,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/eval/feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Classifier accuracy against listener feedback
+         * @description Measures the classifier's interesting/routine verdict against listener votes as ground truth: for every clip that has both a verdict and at least one vote, a majority of thumbs-up counts as 'worth hearing'. Returns precision and recall (null until there is anything to divide) plus the full list of clips where the classifier and listeners disagreed — the clips most worth adding to the evaluation set.
+         */
+        get: operations["get_feedback_eval_eval_feedback_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -841,6 +861,83 @@ export interface components {
             name: string;
             /** Markdown */
             markdown: string;
+        };
+        /**
+         * EvalDisagreement
+         * @description One clip where the classifier and the listeners disagreed.
+         */
+        EvalDisagreement: {
+            /**
+             * Links
+             * @description HAL links: self plus related resources and the actions currently available on this resource.
+             */
+            _links?: {
+                [key: string]: components["schemas"]["Link"];
+            };
+            /** Recording Id */
+            recording_id: number;
+            /**
+             * Classified Interesting
+             * @description The classifier's latest verdict.
+             */
+            classified_interesting: boolean;
+            category: components["schemas"]["ClassificationCategory"];
+            /**
+             * Human Interesting
+             * @description What the listeners' votes say: more thumbs-up than thumbs-down.
+             */
+            human_interesting: boolean;
+            /** Feedback Up */
+            feedback_up: number;
+            /** Feedback Down */
+            feedback_down: number;
+            /** Transcript Snippet */
+            transcript_snippet: string | null;
+        };
+        /**
+         * EvalFeedbackResponse
+         * @description The classifier measured against listener feedback as ground truth.
+         *
+         *     Only clips that have at least one vote and a settled verdict are counted;
+         *     a listener's votes are treated as truth (more up than down = worth
+         *     hearing). Precision and recall are null until there is anything to divide.
+         */
+        EvalFeedbackResponse: {
+            /**
+             * Links
+             * @description HAL links: self plus related resources and the actions currently available on this resource.
+             */
+            _links?: {
+                [key: string]: components["schemas"]["Link"];
+            };
+            /**
+             * Sample Size
+             * @description Clips with both feedback and a classification.
+             */
+            sample_size: number;
+            /**
+             * Precision
+             * @description Of the clips the classifier flagged, the share listeners agreed with.
+             */
+            precision: number | null;
+            /**
+             * Recall
+             * @description Of the clips listeners liked, the share the classifier flagged.
+             */
+            recall: number | null;
+            /** True Positives */
+            true_positives: number;
+            /** False Positives */
+            false_positives: number;
+            /** False Negatives */
+            false_negatives: number;
+            /** True Negatives */
+            true_negatives: number;
+            /**
+             * Disagreements
+             * @description Every clip where the classifier and listeners diverged, newest first.
+             */
+            disagreements: components["schemas"]["EvalDisagreement"][];
         };
         /**
          * FactoryTuning
@@ -2370,6 +2467,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+        };
+    };
+    get_feedback_eval_eval_feedback_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EvalFeedbackResponse"];
                 };
             };
         };

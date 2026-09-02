@@ -660,3 +660,44 @@ class DocumentResponse(HALModel):
 
     name: str
     markdown: str
+
+
+# -- feedback eval ------------------------------------------------------------------
+
+
+class EvalDisagreement(HALModel):
+    """One clip where the classifier and the listeners disagreed."""
+
+    recording_id: int
+    classified_interesting: bool = Field(description="The classifier's latest verdict.")
+    category: ClassificationCategory
+    human_interesting: bool = Field(
+        description="What the listeners' votes say: more thumbs-up than thumbs-down."
+    )
+    feedback_up: int
+    feedback_down: int
+    transcript_snippet: str | None
+
+
+class EvalFeedbackResponse(HALModel):
+    """The classifier measured against listener feedback as ground truth.
+
+    Only clips that have at least one vote and a settled verdict are counted;
+    a listener's votes are treated as truth (more up than down = worth
+    hearing). Precision and recall are null until there is anything to divide.
+    """
+
+    sample_size: int = Field(description="Clips with both feedback and a classification.")
+    precision: float | None = Field(
+        description="Of the clips the classifier flagged, the share listeners agreed with."
+    )
+    recall: float | None = Field(
+        description="Of the clips listeners liked, the share the classifier flagged."
+    )
+    true_positives: int
+    false_positives: int
+    false_negatives: int
+    true_negatives: int
+    disagreements: list[EvalDisagreement] = Field(
+        description="Every clip where the classifier and listeners diverged, newest first."
+    )
