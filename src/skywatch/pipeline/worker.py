@@ -40,6 +40,7 @@ from skywatch.pipeline.retention import (
 from skywatch.pipeline.stages.classify import run_classify
 from skywatch.pipeline.stages.enrich import run_enrich
 from skywatch.pipeline.stages.transcribe import callsign_hotwords, run_transcribe
+from skywatch.pipeline.watch_phrases import load_watch_phrases
 from skywatch.settings import Settings
 
 logger = logging.getLogger(__name__)
@@ -353,6 +354,7 @@ class PipelineWorker:
                 )
                 .order_by(Recording.id)
             ).all()
+            watch_phrases = load_watch_phrases(session)
             candidates: list[tuple[bool, int]] = []
             for recording in rows:
                 if recording.stage == RecordingStage.FAILED_CLASSIFY and (
@@ -366,6 +368,7 @@ class PipelineWorker:
                     transcript_text=transcript.text if transcript else None,
                     duration_s=recording.duration_s,
                     freq_category=frequency.category,
+                    watch_phrases=watch_phrases,
                 )
                 candidates.append((verdict.is_interesting, recording.id))
         # Prefilter-flagged clips go through the (budgeted) LLM first.
@@ -404,6 +407,7 @@ class PipelineWorker:
                     chain=self._chain,
                     daily_call_cap=self.daily_call_cap,
                     recent_durations=_recent_durations(session, recording.freq_id, rec_id),
+                    watch_phrases=load_watch_phrases(session),
                 )
                 recording.stage = RecordingStage.CLASSIFIED
                 self._clear_own_error(recording, "classification")
@@ -454,6 +458,7 @@ class PipelineWorker:
                         chain=self._chain,
                         daily_call_cap=self.daily_call_cap,
                         recent_durations=_recent_durations(session, recording.freq_id, rec_id),
+                        watch_phrases=load_watch_phrases(session),
                         backfill=True,
                     )
                 if row is not None:

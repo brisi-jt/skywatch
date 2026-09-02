@@ -134,6 +134,7 @@ def run_classify(
     chain: list[Classifier],
     daily_call_cap: int,
     recent_durations: tuple[float, ...] | list[float] = (),
+    watch_phrases: tuple[str, ...] | list[str] = (),
     day: date | None = None,
     backfill: bool = False,
 ) -> Classification | None:
@@ -151,6 +152,7 @@ def run_classify(
         duration_s=recording.duration_s,
         freq_category=frequency.category,
         recent_durations=recent_durations,
+        watch_phrases=watch_phrases,
     )
 
     skip_reason = None

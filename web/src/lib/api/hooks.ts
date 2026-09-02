@@ -220,7 +220,7 @@ export function useReclassify() {
 export function useSaveSettings() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: Record<string, string>) => {
+    mutationFn: async (payload: Record<string, string | string[]>) => {
       const result = await api.PATCH("/settings", { body: payload });
       return unwrap(result);
     },

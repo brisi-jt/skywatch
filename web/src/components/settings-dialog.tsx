@@ -31,10 +31,32 @@ export function SettingsDialog({
   const { resolvedTheme, setTheme } = useTheme();
   const save = useSaveSettings();
   const [name, setName] = useState("");
+  const [phrases, setPhrases] = useState("");
 
   useEffect(() => {
     if (open) setName(status?.station_name ?? "");
   }, [open, status?.station_name]);
+
+  useEffect(() => {
+    if (open && settings?.watch_phrases) setPhrases(settings.watch_phrases.join("\n"));
+  }, [open, settings?.watch_phrases]);
+
+  const parsePhrases = (raw: string): string[] => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const line of raw.split("\n")) {
+      const trimmed = line.trim();
+      if (trimmed && !seen.has(trimmed)) {
+        seen.add(trimmed);
+        out.push(trimmed);
+      }
+    }
+    return out;
+  };
+
+  const saveWatchPhrases = () => {
+    save.mutate({ "classify.watch_phrases": parsePhrases(phrases) });
+  };
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -110,6 +132,33 @@ export function SettingsDialog({
               }
               aria-label="Chime on interesting clips"
             />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="settings-watch-phrases" className="text-base">
+              Always flag when heard
+            </Label>
+            <span className="text-sm text-muted-foreground">
+              One phrase per line. Any clip whose transcript contains one is always marked
+              worth hearing.
+            </span>
+            <textarea
+              id="settings-watch-phrases"
+              value={phrases}
+              onChange={(event) => setPhrases(event.target.value)}
+              rows={5}
+              className="min-h-28 rounded-md border bg-background px-3 py-2 text-base"
+              placeholder={"mayday\ngo around\ndiverting"}
+            />
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={saveWatchPhrases}
+                disabled={save.isPending}
+              >
+                Save phrases
+              </Button>
+            </div>
           </div>
           <div className="flex justify-end">
             <Button type="submit" size="lg" disabled={save.isPending}>

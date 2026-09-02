@@ -18,6 +18,8 @@ from skywatch.db.enums import ClassificationCategory, FrequencyCategory
 
 GUARD_FLAG = "guard_frequency"
 DURATION_OUTLIER_FLAG = "duration_outlier"
+WATCH_PHRASE_PREFIX = "watch_phrase:"
+_WATCH_PHRASE_CONFIDENCE = 0.9
 
 # (canonical keyword, matching variants, category). Matching is
 # case-insensitive on hyphen-normalised text; every variant of a keyword
@@ -77,6 +79,7 @@ _CATEGORY_SEVERITY = [
     ClassificationCategory.GO_AROUND,
     ClassificationCategory.UNUSUAL,
     ClassificationCategory.GUARD_ACTIVITY,
+    ClassificationCategory.OTHER,
 ]
 
 _KEYWORD_CONFIDENCE = 0.9
@@ -113,6 +116,17 @@ def keyword_flags(text: str) -> list[str]:
     ]
 
 
+def watch_phrase_flags(text: str, watch_phrases: Sequence[str]) -> list[str]:
+    """Configured watch phrases present in a transcript, in configured order."""
+    haystack = _normalise(text)
+    flags: list[str] = []
+    for phrase in watch_phrases:
+        needle = _normalise(phrase)
+        if needle and needle in haystack and phrase not in flags:
+            flags.append(phrase)
+    return flags
+
+
 def duration_is_outlier(
     duration_s: float,
     recent_durations: Sequence[float],
@@ -138,6 +152,7 @@ def run_prefilters(
     duration_s: float,
     freq_category: FrequencyCategory,
     recent_durations: Sequence[float] = (),
+    watch_phrases: Sequence[str] = (),
 ) -> PrefilterVerdict:
     flags: list[str] = []
     categories: list[ClassificationCategory] = []
@@ -153,6 +168,14 @@ def run_prefilters(
             )
             reasons.append(f"distress keywords: {', '.join(kw_flags)}")
             confidence = max(confidence, _KEYWORD_CONFIDENCE)
+
+        matched_phrases = watch_phrase_flags(transcript_text, watch_phrases)
+        if matched_phrases:
+            flags.extend(f"{WATCH_PHRASE_PREFIX}{phrase}" for phrase in matched_phrases)
+            categories.extend(ClassificationCategory.OTHER for _ in matched_phrases)
+            quoted = ", ".join(f"'{phrase}'" for phrase in matched_phrases)
+            reasons.append(f"watch phrase heard: {quoted}")
+            confidence = max(confidence, _WATCH_PHRASE_CONFIDENCE)
 
     if freq_category is FrequencyCategory.GUARD:
         flags.append(GUARD_FLAG)

@@ -303,7 +303,7 @@ export interface paths {
         head?: never;
         /**
          * Update station settings
-         * @description Partial update: send only the keys to change. Editable keys: `station_name`; and the boolean flags `tuning.walkthrough_done`, `first_clip_celebrated`, and `earcon_enabled` (each 'true' or 'false'). Anything else is rejected with a 400 problem detail listing the allowed keys. A successful rename is announced on the event stream as `status.changed`, so other open dashboards update live.
+         * @description Partial update: send only the keys to change. Editable keys: `station_name` (a string); the boolean flags `tuning.walkthrough_done`, `first_clip_celebrated`, and `earcon_enabled` (each 'true' or 'false'); and `classify.watch_phrases` (a list of non-empty strings that always flag a clip when heard). Anything else is rejected with a 400 problem detail listing the allowed keys. A successful rename is announced on the event stream as `status.changed`, so other open dashboards update live.
          */
         patch: operations["patch_settings_settings_patch"];
         trace?: never;
@@ -1229,6 +1229,11 @@ export interface components {
              * @description Whether a soft chime sounds when an interesting clip is reached in hands-free playback or arrives live. Off by default; the listener opts in.
              */
             earcon_enabled: boolean;
+            /**
+             * Watch Phrases
+             * @description Phrases that always flag a clip as interesting when heard. Editable by the owner; seeded with the station's built-in distress phrases.
+             */
+            watch_phrases: string[];
         };
         /**
          * SinceLastApply
@@ -2117,7 +2122,7 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    [key: string]: string;
+                    [key: string]: unknown;
                 };
             };
         };

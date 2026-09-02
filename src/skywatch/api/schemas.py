@@ -629,6 +629,13 @@ class SettingsResponse(HALModel):
             "opts in."
         ),
     )
+    watch_phrases: list[str] = Field(
+        description=(
+            "Phrases that always flag a clip as interesting when heard. "
+            "Editable by the owner; seeded with the station's built-in distress "
+            "phrases."
+        ),
+    )
 
 
 class DocumentResponse(HALModel):
