@@ -40,6 +40,7 @@ export function HealthStrip({ status }: { status: StatusResponse }) {
     >
       <HealthChip
         health={health.capture}
+        pulse={status.capture.running}
         label={
           status.capture.running
             ? "Listening"

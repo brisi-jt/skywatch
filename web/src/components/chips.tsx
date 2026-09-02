@@ -66,7 +66,16 @@ export function VerifyBadge() {
 
 export type Health = "good" | "warn" | "bad";
 
-export function HealthChip({ health, label }: { health: Health; label: string }) {
+export function HealthChip({
+  health,
+  label,
+  pulse = false,
+}: {
+  health: Health;
+  label: string;
+  /** A gently pulsing dot — used to show the station is actively listening. */
+  pulse?: boolean;
+}) {
   return (
     <span
       className={cn(
@@ -79,7 +88,8 @@ export function HealthChip({ health, label }: { health: Health; label: string })
       <span
         aria-hidden
         className={cn(
-          "size-2 rounded-full",
+          "relative size-2 rounded-full",
+          pulse && "live-dot",
           health === "good" && "bg-health-good",
           health === "warn" && "bg-health-warn",
           health === "bad" && "bg-health-bad",

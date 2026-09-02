@@ -1,10 +1,10 @@
 "use client";
 
-import { Play } from "lucide-react";
+import { Play, X } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
-import { ClipCard } from "@/components/clip-card";
+import { ClipCard, ClipCardSkeleton } from "@/components/clip-card";
 import { NewClipsPill } from "@/components/new-clips-pill";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -77,6 +77,36 @@ function ClipsView() {
   const worthHearingQueue = playableQueue(
     items.filter((clip) => clip.classification?.is_interesting),
   );
+
+  const selectedFreq = frequencies?.items.find((f) => String(f.id) === freqId);
+  const activeFilters: { key: string; label: string; clear: () => void }[] = [];
+  if (fromDate) activeFilters.push({ key: "from", label: `From ${fromDate}`, clear: () => setFromDate("") });
+  if (toDate) activeFilters.push({ key: "to", label: `To ${toDate}`, clear: () => setToDate("") });
+  if (freqId !== "all")
+    activeFilters.push({
+      key: "freq",
+      label: selectedFreq ? freqLabel(selectedFreq.mhz, selectedFreq.label) : "Frequency",
+      clear: () => setFreqId("all"),
+    });
+  if (category !== "all")
+    activeFilters.push({ key: "cat", label: categoryWord(category), clear: () => setCategory("all") });
+  if (interestingOnly)
+    activeFilters.push({
+      key: "interesting",
+      label: "Worth hearing only",
+      clear: () => setInterestingOnly(false),
+    });
+  if (hasAircraft)
+    activeFilters.push({ key: "aircraft", label: "Has aircraft", clear: () => setHasAircraft(false) });
+
+  const clearAllFilters = () => {
+    setFromDate("");
+    setToDate("");
+    setFreqId("all");
+    setCategory("all");
+    setInterestingOnly(false);
+    setHasAircraft(false);
+  };
 
   // A deep-linked clip that isn't in the visible pages still gets shown.
   const linkedId = linkedClip ? Number(linkedClip) : null;
@@ -166,8 +196,33 @@ function ClipsView() {
         </label>
       </section>
 
-      {worthHearingQueue.length > 0 && (
-        <div className="flex justify-end">
+      {activeFilters.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2" aria-label="Active filters">
+          <span className="text-sm text-muted-foreground">Showing:</span>
+          {activeFilters.map((filter) => (
+            <button
+              key={filter.key}
+              type="button"
+              onClick={filter.clear}
+              className="inline-flex min-h-8 items-center gap-1.5 rounded-full bg-secondary px-3 text-sm text-secondary-foreground transition-colors hover:opacity-80"
+              aria-label={`Remove filter: ${filter.label}`}
+            >
+              {filter.label}
+              <X className="size-3.5" aria-hidden />
+            </button>
+          ))}
+          <Button variant="ghost" className="min-h-8 px-2 text-sm" onClick={clearAllFilters}>
+            Clear filters
+          </Button>
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-sm text-muted-foreground">
+          {total != null &&
+            `${total} ${total === 1 ? "clip" : "clips"}${activeFilters.length > 0 ? " match these filters" : ""}`}
+        </span>
+        {worthHearingQueue.length > 0 && (
           <Button
             variant="outline"
             className="min-h-10"
@@ -176,8 +231,8 @@ function ClipsView() {
             <Play className="size-4" />
             Play all worth hearing
           </Button>
-        </div>
-      )}
+        )}
+      </div>
 
       <NewClipsPill />
 
@@ -186,7 +241,7 @@ function ClipsView() {
       {recordings.isPending && (
         <div className="flex flex-col gap-4" aria-hidden>
           {[0, 1, 2].map((i) => (
-            <div key={i} className="h-28 animate-pulse rounded-xl border bg-card" />
+            <ClipCardSkeleton key={i} />
           ))}
         </div>
       )}

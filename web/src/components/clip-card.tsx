@@ -196,6 +196,20 @@ export function ClipCard({
   );
 }
 
+/** A card-shaped placeholder while a page of clips is loading. */
+export function ClipCardSkeleton() {
+  return (
+    <div className="flex items-start gap-4 rounded-xl border bg-card p-4" aria-hidden>
+      <div className="size-12 shrink-0 animate-pulse rounded-full bg-muted" />
+      <div className="min-w-0 flex-1 space-y-2">
+        <div className="h-4 w-40 animate-pulse rounded bg-muted" />
+        <div className="h-4 w-full animate-pulse rounded bg-muted" />
+        <div className="h-4 w-3/4 animate-pulse rounded bg-muted" />
+      </div>
+    </div>
+  );
+}
+
 /** The now-playing marker: an equalizer glyph that animates only while playing. */
 function NowPlaying({ playing }: { playing: boolean }) {
   return (
