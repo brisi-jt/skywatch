@@ -62,6 +62,9 @@ class ASRSettings(BaseModel):
     compute_type: str = "int8"
     whisper_cpp_binary: Path = Path("whisper-cli")
     whisper_cpp_model: Path | None = None
+    # Bias the recogniser towards the spoken forms of nearby aircraft
+    # callsigns (from enrichment) when transcribing a clip.
+    callsign_boost: bool = True
 
 
 class LLMSettings(BaseModel):

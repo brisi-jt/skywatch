@@ -39,7 +39,7 @@ from skywatch.pipeline.retention import (
 )
 from skywatch.pipeline.stages.classify import run_classify
 from skywatch.pipeline.stages.enrich import run_enrich
-from skywatch.pipeline.stages.transcribe import run_transcribe
+from skywatch.pipeline.stages.transcribe import callsign_hotwords, run_transcribe
 from skywatch.settings import Settings
 
 logger = logging.getLogger(__name__)
@@ -88,6 +88,8 @@ class PipelineWorker:
         min_free_disk_gb: float,
         capture_source=None,
         watcher=None,
+        airlines=None,
+        callsign_boost: bool = True,
         max_attempts: int = 3,
         backoff_base_s: float = 30.0,
         maintenance_interval_s: float = 900.0,
@@ -104,6 +106,8 @@ class PipelineWorker:
         self._min_free_disk_gb = min_free_disk_gb
         self._capture_source = capture_source
         self._watcher = watcher
+        self._airlines = airlines
+        self._callsign_boost = callsign_boost
         self._max_attempts = max(1, max_attempts)
         self._backoff_base_s = backoff_base_s
         self._maintenance_interval_s = maintenance_interval_s
@@ -295,7 +299,26 @@ class PipelineWorker:
                     RecordingStage.FAILED_TRANSCRIBE,
                 ):
                     return
-                run_transcribe(session, recording, engine=self._asr, data_root=self._data_root)
+                hotwords: list[str] = []
+                if self._callsign_boost and self._airlines is not None:
+                    # Enrichment runs before transcription in the stage machine,
+                    # so candidates usually exist by now; when they do not (no
+                    # enrichment, no candidates, or an abandoned lookup) this is
+                    # simply empty and the recogniser gets no bias.
+                    hotwords = callsign_hotwords(session, rec_id, self._airlines)
+                initial_prompt = (
+                    "Aircraft callsigns heard nearby: " + ", ".join(hotwords) + "."
+                    if hotwords
+                    else None
+                )
+                run_transcribe(
+                    session,
+                    recording,
+                    engine=self._asr,
+                    data_root=self._data_root,
+                    hotwords=hotwords or None,
+                    initial_prompt=initial_prompt,
+                )
                 recording.stage = RecordingStage.TRANSCRIBED
                 self._clear_own_error(recording, "transcription")
                 session.add(recording)
@@ -613,6 +636,7 @@ def build_worker(settings: Settings, engine=None) -> PipelineWorker:
         gemini_api_key=settings.gemini_api_key,
         groq_api_key=settings.groq_api_key,
     )
+    airlines = AirlineDirectory.load(_repo_relative("content") / "airlines.dat")
 
     enricher = None
     if settings.enrichment.provider == "opensky":
@@ -631,7 +655,7 @@ def build_worker(settings: Settings, engine=None) -> PipelineWorker:
                 radius_km=settings.enrichment.radius_km,
                 bucket_seconds=settings.enrichment.bucket_seconds,
                 daily_credit_cap=settings.enrichment.daily_credit_cap,
-                airlines=AirlineDirectory.load(_repo_relative("content") / "airlines.dat"),
+                airlines=airlines,
             )
 
     watcher = RecordingWatcher(engine, recordings_dir, data_root=data_root)
@@ -666,6 +690,8 @@ def build_worker(settings: Settings, engine=None) -> PipelineWorker:
         min_free_disk_gb=settings.retention.min_free_disk_gb,
         capture_source=capture_source,
         watcher=watcher,
+        airlines=airlines,
+        callsign_boost=settings.asr.callsign_boost,
     )
 
 

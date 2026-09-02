@@ -45,6 +45,10 @@ asr:
   # model file (e.g. ggml-base.en.bin).
   whisper_cpp_binary: whisper-cli
   whisper_cpp_model: null
+  # Bias transcription towards the spoken forms of nearby aircraft callsigns
+  # found during enrichment (e.g. "speedbird two seven six one"). Only the
+  # faster_whisper engine uses this; whisper_cpp ignores it.
+  callsign_boost: true
 
 llm:
   # Classification provider chain; none = prefilter-only classification.

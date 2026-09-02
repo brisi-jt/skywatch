@@ -10,8 +10,24 @@ from pathlib import Path
 
 from sqlmodel import Session, delete, select
 
-from skywatch.db.models import Recording, Transcript, TranscriptSegment
+from skywatch.db.models import AircraftMatch, Recording, Transcript, TranscriptSegment
 from skywatch.providers.asr.base import ASREngine
+from skywatch.providers.asr.verbalize import verbalize_callsigns
+
+
+def callsign_hotwords(session: Session, recording_id: int, airlines) -> list[str]:
+    """Spoken forms of a clip's probable-aircraft callsigns, best rank first.
+
+    Returns ``[]`` when enrichment found no candidates (or was never run),
+    so callers can pass the result straight through — the recogniser simply
+    gets no bias.
+    """
+    callsigns = session.exec(
+        select(AircraftMatch.callsign)
+        .where(AircraftMatch.recording_id == recording_id)
+        .order_by(AircraftMatch.rank)  # type: ignore[arg-type]
+    ).all()
+    return verbalize_callsigns(callsigns, airlines)
 
 
 def run_transcribe(

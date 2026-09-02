@@ -19,6 +19,8 @@ class Airline:
     name: str
     icao: str
     iata: str | None
+    radio: str | None = None
+    """The spoken R/T callsign (e.g. SPEEDBIRD for BAW), when published."""
 
 
 class AirlineDirectory:
@@ -34,14 +36,18 @@ class AirlineDirectory:
             for row in csv.reader(handle):
                 if len(row) < 8:
                     continue
-                _, name, _alias, iata, icao, _callsign, _country, active = row[:8]
+                _, name, _alias, iata, icao, callsign, _country, active = row[:8]
                 if len(icao) != 3 or not icao.isalpha() or icao == "N/A":
                     continue
                 icao = icao.upper()
+                radio = callsign.strip() or None
+                if radio in (r"\N", "N/A"):
+                    radio = None
                 airline = Airline(
                     name=name,
                     icao=icao,
                     iata=iata if len(iata) == 2 and iata != "-" else None,
+                    radio=radio,
                 )
                 # Later rows only displace an earlier one if the earlier
                 # airline was defunct and this one is active.
