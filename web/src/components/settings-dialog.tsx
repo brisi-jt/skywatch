@@ -15,7 +15,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useSaveSettings, useStatus } from "@/lib/api/hooks";
+import { Switch } from "@/components/ui/switch";
+import { useSaveSettings, useSettings, useStatus } from "@/lib/api/hooks";
 import { cn } from "@/lib/utils";
 
 export function SettingsDialog({
@@ -26,6 +27,7 @@ export function SettingsDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const { data: status } = useStatus();
+  const { data: settings } = useSettings();
   const { resolvedTheme, setTheme } = useTheme();
   const save = useSaveSettings();
   const [name, setName] = useState("");
@@ -93,6 +95,21 @@ export function SettingsDialog({
                 </button>
               ))}
             </div>
+          </div>
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex flex-col">
+              <span className="text-base font-medium">Chime on interesting clips</span>
+              <span className="text-sm text-muted-foreground">
+                A soft tone when a clip worth hearing arrives or plays. Off by default.
+              </span>
+            </div>
+            <Switch
+              checked={settings?.earcon_enabled ?? false}
+              onCheckedChange={(checked) =>
+                save.mutate({ earcon_enabled: checked ? "true" : "false" })
+              }
+              aria-label="Chime on interesting clips"
+            />
           </div>
           <div className="flex justify-end">
             <Button type="submit" size="lg" disabled={save.isPending}>

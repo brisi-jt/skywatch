@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React, { useState } from "react";
 
+import { FirstClipCelebration } from "@/components/first-clip-celebration";
 import { NamingDialog } from "@/components/naming-dialog";
 import { PlayerBar } from "@/components/player-bar";
 import { SettingsDialog } from "@/components/settings-dialog";
@@ -91,6 +92,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
       <NamingDialog stationName={status ? stationName : undefined} />
       <PlayerBar />
+      <FirstClipCelebration />
       <ThemeWash />
     </div>
   );
