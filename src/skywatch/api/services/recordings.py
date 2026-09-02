@@ -23,6 +23,7 @@ from skywatch.api.schemas import (
     RecordingDetail,
     RecordingSummary,
     TranscriptResource,
+    TranscriptSegmentResource,
 )
 from skywatch.db.enums import ClassificationCategory, FeedbackVerdict
 from skywatch.db.models import (
@@ -32,6 +33,7 @@ from skywatch.db.models import (
     Frequency,
     Recording,
     Transcript,
+    TranscriptSegment,
 )
 
 SNIPPET_LENGTH = 140
@@ -229,13 +231,22 @@ def build_detail(session: Session, recording: Recording) -> RecordingDetail:
     entries = session.exec(
         select(Feedback).where(Feedback.recording_id == recording.id).order_by(Feedback.id.desc())  # type: ignore[union-attr]
     ).all()
+    segments = (
+        session.exec(
+            select(TranscriptSegment)
+            .where(TranscriptSegment.transcript_id == transcript.id)
+            .order_by(TranscriptSegment.start_s, TranscriptSegment.id)  # type: ignore[arg-type]
+        ).all()
+        if transcript is not None
+        else []
+    )
     return RecordingDetail(
         **summary.model_dump(exclude={"links"}),
         sample_rate=recording.sample_rate,
         file_path=recording.file_path,
         stage_error=recording.stage_error,
         audio_deleted_at=recording.audio_deleted_at,
-        transcript=_transcript_resource(transcript) if transcript else None,
+        transcript=_transcript_resource(transcript, segments) if transcript else None,
         classifications=[_classification_resource(c) for c in classifications],
         matches=[_match_resource(m) for m in matches],
         feedback_entries=[
@@ -253,7 +264,9 @@ def build_detail(session: Session, recording: Recording) -> RecordingDetail:
     )
 
 
-def _transcript_resource(row: Transcript) -> TranscriptResource:
+def _transcript_resource(
+    row: Transcript, segments: list[TranscriptSegment] | None = None
+) -> TranscriptResource:
     return TranscriptResource(
         id=row.id,
         engine=row.engine,
@@ -261,6 +274,16 @@ def _transcript_resource(row: Transcript) -> TranscriptResource:
         text=row.text,
         avg_logprob=row.avg_logprob,
         language=row.language,
+        segments=[
+            TranscriptSegmentResource(
+                id=seg.id,
+                start_s=seg.start_s,
+                end_s=seg.end_s,
+                text=seg.text,
+                avg_word_prob=seg.avg_word_prob,
+            )
+            for seg in (segments or [])
+        ],
         created_at=row.created_at,
     )
 

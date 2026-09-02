@@ -39,9 +39,12 @@ class FakeASR:
         self.calls = 0
         self.paths: list[Path] = []
 
-    def transcribe(self, audio_path: Path) -> TranscriptionResult:
+    def transcribe(
+        self, audio_path: Path, *, hotwords=None, initial_prompt=None
+    ) -> TranscriptionResult:
         self.calls += 1
         self.paths.append(audio_path)
+        self.last_hotwords = hotwords
         if self._error:
             raise ASRError("decode failed")
         key = audio_path.name.split("_")[0]

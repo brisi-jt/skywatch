@@ -100,6 +100,22 @@ class FrequencyRef(BaseModel):
     mhz: float
 
 
+class TranscriptSegmentResource(BaseModel):
+    """One timed slice of a transcript, for follow-along playback."""
+
+    id: int
+    start_s: float = Field(description="Segment start, in seconds from the clip's beginning.")
+    end_s: float = Field(description="Segment end, in seconds from the clip's beginning.")
+    text: str
+    avg_word_prob: float | None = Field(
+        description=(
+            "Mean per-word probability across the segment; nearer 1.0 is more "
+            "confident, and low values deserve a 'rough' caveat. Null when the "
+            "engine does not report word-level probabilities."
+        )
+    )
+
+
 class TranscriptResource(BaseModel):
     """Speech-to-text output with engine provenance."""
 
@@ -115,6 +131,13 @@ class TranscriptResource(BaseModel):
         )
     )
     language: str | None
+    segments: list[TranscriptSegmentResource] = Field(
+        default_factory=list,
+        description=(
+            "Timed segments in order, for a transcript that follows the audio. "
+            "Empty when the engine reported no timings."
+        ),
+    )
     created_at: datetime
 
 

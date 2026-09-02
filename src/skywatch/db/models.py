@@ -131,6 +131,24 @@ class Transcript(TimestampMixin, table=True):
     language: str | None = None
 
 
+class TranscriptSegment(TimestampMixin, table=True):
+    """One timed segment of a transcript, for follow-along playback.
+
+    ``avg_word_prob`` is the mean per-word probability the recogniser
+    assigned across the segment (nearer 1.0 is more confident); it is null
+    when the engine does not report word-level probabilities.
+    """
+
+    __tablename__ = "transcript_segments"
+
+    id: int | None = Field(default=None, primary_key=True)
+    transcript_id: int = Field(foreign_key="transcripts.id", index=True)
+    start_s: float
+    end_s: float
+    text: str
+    avg_word_prob: float | None = None
+
+
 class Classification(TimestampMixin, table=True):
     """A routine/interesting verdict for a recording.
 

@@ -1379,10 +1379,40 @@ export interface components {
             /** Language */
             language: string | null;
             /**
+             * Segments
+             * @description Timed segments in order, for a transcript that follows the audio. Empty when the engine reported no timings.
+             */
+            segments?: components["schemas"]["TranscriptSegmentResource"][];
+            /**
              * Created At
              * Format: date-time
              */
             created_at: string;
+        };
+        /**
+         * TranscriptSegmentResource
+         * @description One timed slice of a transcript, for follow-along playback.
+         */
+        TranscriptSegmentResource: {
+            /** Id */
+            id: number;
+            /**
+             * Start S
+             * @description Segment start, in seconds from the clip's beginning.
+             */
+            start_s: number;
+            /**
+             * End S
+             * @description Segment end, in seconds from the clip's beginning.
+             */
+            end_s: number;
+            /** Text */
+            text: string;
+            /**
+             * Avg Word Prob
+             * @description Mean per-word probability across the segment; nearer 1.0 is more confident, and low values deserve a 'rough' caveat. Null when the engine does not report word-level probabilities.
+             */
+            avg_word_prob: number | null;
         };
         /**
          * TuningApplyRequest

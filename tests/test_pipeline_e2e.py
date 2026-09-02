@@ -58,7 +58,9 @@ CLIP_PLAN = [
 class TemplateASR:
     """Maps the replay template prefix of each clip to a canned transcript."""
 
-    def transcribe(self, audio_path: Path) -> TranscriptionResult:
+    def transcribe(
+        self, audio_path: Path, *, hotwords=None, initial_prompt=None
+    ) -> TranscriptionResult:
         key = audio_path.name.split("_")[0]
         return TranscriptionResult(
             text=TRANSCRIPTS[key],

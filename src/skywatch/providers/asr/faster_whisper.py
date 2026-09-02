@@ -6,12 +6,20 @@ construction — the worker can be built (and tested) on machines without the
 """
 
 import logging
+from collections.abc import Sequence
 from pathlib import Path
 
 from skywatch.db.enums import AsrEngine
-from skywatch.providers.asr.base import ASRError, TranscriptionResult
+from skywatch.providers.asr.base import ASRError, TranscriptionResult, TranscriptionSegment
 
 logger = logging.getLogger(__name__)
+
+
+def _segment_word_prob(segment) -> float | None:
+    """Mean per-word probability across a segment, or None when unavailable."""
+    words = getattr(segment, "words", None) or []
+    probs = [w.probability for w in words if getattr(w, "probability", None) is not None]
+    return sum(probs) / len(probs) if probs else None
 
 
 class FasterWhisperEngine:
@@ -33,22 +41,43 @@ class FasterWhisperEngine:
             self._model = WhisperModel(self.model_name, compute_type=self.compute_type)
         return self._model
 
-    def transcribe(self, audio_path: Path) -> TranscriptionResult:
+    def transcribe(
+        self,
+        audio_path: Path,
+        *,
+        hotwords: Sequence[str] | None = None,
+        initial_prompt: str | None = None,
+    ) -> TranscriptionResult:
         if not Path(audio_path).is_file():
             raise ASRError(f"audio file missing: {audio_path}")
         model = self._load()
         try:
-            segments, info = model.transcribe(str(audio_path))
+            segments, info = model.transcribe(
+                str(audio_path),
+                word_timestamps=True,
+                hotwords=" ".join(hotwords) if hotwords else None,
+                initial_prompt=initial_prompt,
+            )
             segment_list = list(segments)
         except Exception as exc:
             raise ASRError(f"faster-whisper failed on {audio_path}: {exc}") from exc
         text = " ".join(segment.text.strip() for segment in segment_list).strip()
         logprobs = [s.avg_logprob for s in segment_list if s.avg_logprob is not None]
         avg_logprob = sum(logprobs) / len(logprobs) if logprobs else None
+        timed = tuple(
+            TranscriptionSegment(
+                start_s=float(segment.start),
+                end_s=float(segment.end),
+                text=segment.text.strip(),
+                avg_word_prob=_segment_word_prob(segment),
+            )
+            for segment in segment_list
+        )
         return TranscriptionResult(
             text=text,
             avg_logprob=avg_logprob,
             language=getattr(info, "language", None),
             engine=AsrEngine.FASTER_WHISPER,
             model=self.model_name,
+            segments=timed,
         )
