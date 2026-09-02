@@ -142,6 +142,7 @@ def recording_links(recording: Recording) -> dict[str, Link]:
     }
     if recording.audio_deleted_at is None:
         links["audio"] = Link(href=f"/recordings/{recording.id}/audio")
+        links["peaks"] = Link(href=f"/recordings/{recording.id}/peaks")
     return links
 
 

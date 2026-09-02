@@ -462,6 +462,69 @@
         }
       }
     },
+    "/recordings/{recording_id}/peaks": {
+      "get": {
+        "tags": [
+          "recordings"
+        ],
+        "summary": "A clip's waveform for the scrubber",
+        "description": "Normalised amplitude peaks for drawing a static waveform behind the player's seek bar. Computed from the clip's MP3 the first time it is asked for and cached thereafter, so this is cheap on repeat visits. Returns 410 once retention has pruned the audio. The peaks array is empty when the station's audio decoder is unavailable \u2014 the scrubber then shows a plain track.",
+        "operationId": "get_peaks_recordings__recording_id__peaks_get",
+        "parameters": [
+          {
+            "name": "recording_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Recording Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WaveformResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown recording or missing file.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Audio pruned by retention.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/recordings/{recording_id}/reclassify": {
       "post": {
         "tags": [
@@ -792,7 +855,7 @@
           "settings"
         ],
         "summary": "Update station settings",
-        "description": "Partial update: send only the keys to change. Editable keys: `station_name`, and `tuning.walkthrough_done` ('true' or 'false'); anything else is rejected with a 400 problem detail listing the allowed keys. A successful rename is announced on the event stream as `status.changed`, so other open dashboards update live.",
+        "description": "Partial update: send only the keys to change. Editable keys: `station_name`; and the boolean flags `tuning.walkthrough_done`, `first_clip_celebrated`, and `earcon_enabled` (each 'true' or 'false'). Anything else is rejected with a 400 problem detail listing the allowed keys. A successful rename is announced on the event stream as `status.changed`, so other open dashboards update live.",
         "operationId": "patch_settings_settings_patch",
         "requestBody": {
           "content": {
@@ -2604,12 +2667,24 @@
             "type": "boolean",
             "title": "Tuning Walkthrough Done",
             "description": "Whether the tuning bench's one-time introductory tour has been completed or dismissed."
+          },
+          "first_clip_celebrated": {
+            "type": "boolean",
+            "title": "First Clip Celebrated",
+            "description": "Whether the once-ever celebration for the station's first captured clip has already been shown. Set true after it plays so it never repeats."
+          },
+          "earcon_enabled": {
+            "type": "boolean",
+            "title": "Earcon Enabled",
+            "description": "Whether a soft chime sounds when an interesting clip is reached in hands-free playback or arrives live. Off by default; the listener opts in."
           }
         },
         "type": "object",
         "required": [
           "station_name",
-          "tuning_walkthrough_done"
+          "tuning_walkthrough_done",
+          "first_clip_celebrated",
+          "earcon_enabled"
         ],
         "title": "SettingsResponse",
         "description": "The station's owner-editable settings."
@@ -3166,6 +3241,37 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "WaveformResponse": {
+        "properties": {
+          "_links": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "type": "object",
+            "title": "Links",
+            "description": "HAL links: self plus related resources and the actions currently available on this resource."
+          },
+          "recording_id": {
+            "type": "integer",
+            "title": "Recording Id"
+          },
+          "peaks": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Peaks",
+            "description": "Normalised amplitudes in [0, 1], one per horizontal bucket, for drawing a static waveform behind the seek bar. Empty when the station cannot decode the clip's audio."
+          }
+        },
+        "type": "object",
+        "required": [
+          "recording_id",
+          "peaks"
+        ],
+        "title": "WaveformResponse",
+        "description": "A clip's waveform, downsampled for a scrubber."
       }
     }
   }

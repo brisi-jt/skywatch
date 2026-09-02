@@ -19,7 +19,9 @@ from skywatch.api.schemas import (
     ReclassifyResponse,
     RecordingDetail,
     RecordingListResponse,
+    WaveformResponse,
 )
+from skywatch.api.services import peaks as peaks_service
 from skywatch.api.services.recordings import (
     RecordingFilters,
     build_detail,
@@ -186,6 +188,54 @@ def get_audio(
             "the audio file for this clip is not on disk",
         )
     return FileResponse(path, media_type="audio/mpeg", filename=path.name)
+
+
+@router.get(
+    "/recordings/{recording_id}/peaks",
+    response_model=WaveformResponse,
+    summary="A clip's waveform for the scrubber",
+    description=(
+        "Normalised amplitude peaks for drawing a static waveform behind the "
+        "player's seek bar. Computed from the clip's MP3 the first time it is "
+        "asked for and cached thereafter, so this is cheap on repeat visits. "
+        "Returns 410 once retention has pruned the audio. The peaks array is "
+        "empty when the station's audio decoder is unavailable — the scrubber "
+        "then shows a plain track."
+    ),
+    responses={
+        404: {"model": ProblemDetail, "description": "Unknown recording or missing file."},
+        410: {"model": ProblemDetail, "description": "Audio pruned by retention."},
+    },
+)
+def get_peaks(
+    recording_id: int,
+    session: Annotated[Session, Depends(get_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> WaveformResponse:
+    recording = _get_recording(session, recording_id)
+    if recording.audio_deleted_at is not None:
+        raise ProblemException(
+            status.HTTP_410_GONE,
+            APIErrorCode.AUDIO_DELETED,
+            "audio for this clip was pruned by the retention policy; its "
+            "waveform is no longer available",
+        )
+    path = settings.data_root / recording.file_path
+    if not path.is_file():
+        raise ProblemException(
+            status.HTTP_404_NOT_FOUND,
+            APIErrorCode.AUDIO_FILE_MISSING,
+            "the audio file for this clip is not on disk",
+        )
+    peaks = peaks_service.load_or_compute(settings.data_root, recording_id, path)
+    return WaveformResponse(
+        recording_id=recording_id,
+        peaks=peaks,
+        links={
+            "self": Link(href=f"/recordings/{recording_id}/peaks"),
+            "audio": Link(href=f"/recordings/{recording_id}/audio"),
+        },
+    )
 
 
 @router.post(

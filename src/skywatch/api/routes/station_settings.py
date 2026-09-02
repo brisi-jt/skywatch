@@ -33,10 +33,11 @@ def get_settings(session: Annotated[Session, Depends(get_session)]) -> SettingsR
     summary="Update station settings",
     description=(
         "Partial update: send only the keys to change. Editable keys: "
-        "`station_name`, and `tuning.walkthrough_done` ('true' or 'false'); "
-        "anything else is rejected with a 400 problem detail listing the "
-        "allowed keys. A successful rename is announced on the event stream "
-        "as `status.changed`, so other open dashboards update live."
+        "`station_name`; and the boolean flags `tuning.walkthrough_done`, "
+        "`first_clip_celebrated`, and `earcon_enabled` (each 'true' or "
+        "'false'). Anything else is rejected with a 400 problem detail "
+        "listing the allowed keys. A successful rename is announced on the "
+        "event stream as `status.changed`, so other open dashboards update live."
     ),
     responses={
         400: {"model": ProblemDetail, "description": "Unknown setting key."},

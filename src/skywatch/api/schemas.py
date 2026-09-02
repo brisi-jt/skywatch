@@ -235,6 +235,19 @@ class RecordingListResponse(HALModel):
     offset: int
 
 
+class WaveformResponse(HALModel):
+    """A clip's waveform, downsampled for a scrubber."""
+
+    recording_id: int
+    peaks: list[float] = Field(
+        description=(
+            "Normalised amplitudes in [0, 1], one per horizontal bucket, for "
+            "drawing a static waveform behind the seek bar. Empty when the "
+            "station cannot decode the clip's audio."
+        )
+    )
+
+
 class ReclassifyResponse(HALModel):
     """Acknowledgement that a clip was queued for reclassification."""
 
@@ -577,6 +590,20 @@ class SettingsResponse(HALModel):
     tuning_walkthrough_done: bool = Field(
         description=(
             "Whether the tuning bench's one-time introductory tour has been completed or dismissed."
+        ),
+    )
+    first_clip_celebrated: bool = Field(
+        description=(
+            "Whether the once-ever celebration for the station's first captured "
+            "clip has already been shown. Set true after it plays so it never "
+            "repeats."
+        ),
+    )
+    earcon_enabled: bool = Field(
+        description=(
+            "Whether a soft chime sounds when an interesting clip is reached in "
+            "hands-free playback or arrives live. Off by default; the listener "
+            "opts in."
         ),
     )
 

@@ -144,6 +144,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/recordings/{recording_id}/peaks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A clip's waveform for the scrubber
+         * @description Normalised amplitude peaks for drawing a static waveform behind the player's seek bar. Computed from the clip's MP3 the first time it is asked for and cached thereafter, so this is cheap on repeat visits. Returns 410 once retention has pruned the audio. The peaks array is empty when the station's audio decoder is unavailable — the scrubber then shows a plain track.
+         */
+        get: operations["get_peaks_recordings__recording_id__peaks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/recordings/{recording_id}/reclassify": {
         parameters: {
             query?: never;
@@ -283,7 +303,7 @@ export interface paths {
         head?: never;
         /**
          * Update station settings
-         * @description Partial update: send only the keys to change. Editable keys: `station_name`, and `tuning.walkthrough_done` ('true' or 'false'); anything else is rejected with a 400 problem detail listing the allowed keys. A successful rename is announced on the event stream as `status.changed`, so other open dashboards update live.
+         * @description Partial update: send only the keys to change. Editable keys: `station_name`; and the boolean flags `tuning.walkthrough_done`, `first_clip_celebrated`, and `earcon_enabled` (each 'true' or 'false'). Anything else is rejected with a 400 problem detail listing the allowed keys. A successful rename is announced on the event stream as `status.changed`, so other open dashboards update live.
          */
         patch: operations["patch_settings_settings_patch"];
         trace?: never;
@@ -1199,6 +1219,16 @@ export interface components {
              * @description Whether the tuning bench's one-time introductory tour has been completed or dismissed.
              */
             tuning_walkthrough_done: boolean;
+            /**
+             * First Clip Celebrated
+             * @description Whether the once-ever celebration for the station's first captured clip has already been shown. Set true after it plays so it never repeats.
+             */
+            first_clip_celebrated: boolean;
+            /**
+             * Earcon Enabled
+             * @description Whether a soft chime sounds when an interesting clip is reached in hands-free playback or arrives live. Off by default; the listener opts in.
+             */
+            earcon_enabled: boolean;
         };
         /**
          * SinceLastApply
@@ -1451,6 +1481,26 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /**
+         * WaveformResponse
+         * @description A clip's waveform, downsampled for a scrubber.
+         */
+        WaveformResponse: {
+            /**
+             * Links
+             * @description HAL links: self plus related resources and the actions currently available on this resource.
+             */
+            _links?: {
+                [key: string]: components["schemas"]["Link"];
+            };
+            /** Recording Id */
+            recording_id: number;
+            /**
+             * Peaks
+             * @description Normalised amplitudes in [0, 1], one per horizontal bucket, for drawing a static waveform behind the seek bar. Empty when the station cannot decode the clip's audio.
+             */
+            peaks: number[];
         };
     };
     responses: never;
@@ -1711,6 +1761,55 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Unknown recording or missing file. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Audio pruned by retention. */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_peaks_recordings__recording_id__peaks_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                recording_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WaveformResponse"];
+                };
             };
             /** @description Unknown recording or missing file. */
             404: {

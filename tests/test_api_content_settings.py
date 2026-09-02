@@ -91,6 +91,39 @@ class TestSettings:
         assert response.json()["code"] == "invalid_setting_value"
         assert client.get("/settings").json()["tuning_walkthrough_done"] is False
 
+    def test_first_clip_celebrated_defaults_false(self, client):
+        assert client.get("/settings").json()["first_clip_celebrated"] is False
+
+    def test_first_clip_celebrated_round_trips(self, client):
+        response = client.patch("/settings", json={"first_clip_celebrated": "true"})
+
+        assert response.status_code == 200
+        assert response.json()["first_clip_celebrated"] is True
+        assert client.get("/settings").json()["first_clip_celebrated"] is True
+
+    def test_first_clip_celebrated_rejects_non_boolean(self, client):
+        response = client.patch("/settings", json={"first_clip_celebrated": "yes"})
+        assert response.status_code == 422
+        assert response.json()["code"] == "invalid_setting_value"
+
+    def test_earcon_defaults_off(self, client):
+        assert client.get("/settings").json()["earcon_enabled"] is False
+
+    def test_earcon_round_trips(self, client):
+        response = client.patch("/settings", json={"earcon_enabled": "true"})
+
+        assert response.status_code == 200
+        assert response.json()["earcon_enabled"] is True
+        assert client.get("/settings").json()["earcon_enabled"] is True
+
+        client.patch("/settings", json={"earcon_enabled": "false"})
+        assert client.get("/settings").json()["earcon_enabled"] is False
+
+    def test_earcon_rejects_non_boolean(self, client):
+        response = client.patch("/settings", json={"earcon_enabled": "loud"})
+        assert response.status_code == 422
+        assert response.json()["code"] == "invalid_setting_value"
+
 
 class TestAppPlumbing:
     def test_unknown_path_is_a_problem_404(self, client):
