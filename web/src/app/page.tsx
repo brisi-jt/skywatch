@@ -1,5 +1,6 @@
 "use client";
 
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Play } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -20,6 +21,8 @@ import { usePlayer } from "@/lib/player";
 
 export default function TodayPage() {
   const [date, setDate] = useState(todayIso);
+  const [direction, setDirection] = useState(0);
+  const reducedMotion = useReducedMotion();
   const { data: status } = useStatus();
   const { data: hasAny, isPending: anyPending } = useHasAnyRecording();
   const digest = useDigest(date);
@@ -38,104 +41,125 @@ export default function TodayPage() {
     return <EmptyHero status={status} activeCount={activeCount} />;
   }
 
+  const goToDay = (delta: number) => {
+    setDirection(delta);
+    setDate((d) => shiftDay(d, delta));
+  };
+  const goToToday = () => {
+    setDirection(1);
+    setDate(todayIso());
+  };
+
+  const dayVariants = {
+    enter: (d: number) => (reducedMotion ? { opacity: 1 } : { x: d >= 0 ? 28 : -28, opacity: 0 }),
+    center: { x: 0, opacity: 1 },
+    exit: (d: number) => (reducedMotion ? { opacity: 1 } : { x: d >= 0 ? -28 : 28, opacity: 0 }),
+  };
+
   return (
     <div className="flex flex-col gap-8">
       {status && <HealthStrip status={status} />}
 
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-base text-muted-foreground">{friendlyDate(date)}</p>
-          <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight">
-            {digest.data ? (
-              <>
-                {weekday(date)}: {digest.data.total_count}{" "}
-                {digest.data.total_count === 1 ? "transmission" : "transmissions"},{" "}
-                {digest.data.interesting_count} worth hearing
-              </>
-            ) : digest.isError ? (
-              "The day's digest could not be loaded"
+      <nav className="flex items-center justify-end gap-1" aria-label="Change day">
+        <Button
+          variant="outline"
+          size="icon"
+          className="size-10"
+          aria-label="Previous day"
+          onClick={() => goToDay(-1)}
+        >
+          <ChevronLeft className="size-5" />
+        </Button>
+        <Button variant="outline" className="min-h-10" disabled={isToday} onClick={goToToday}>
+          Today
+        </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          className="size-10"
+          aria-label="Next day"
+          disabled={isToday}
+          onClick={() => goToDay(1)}
+        >
+          <ChevronRight className="size-5" />
+        </Button>
+      </nav>
+
+      <AnimatePresence mode="wait" custom={direction} initial={false}>
+        <motion.div
+          key={date}
+          className="flex flex-col gap-8"
+          custom={direction}
+          variants={dayVariants}
+          initial="enter"
+          animate="center"
+          exit="exit"
+          transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+        >
+          <header>
+            <p className="text-base text-muted-foreground">{friendlyDate(date)}</p>
+            <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight">
+              {digest.data ? (
+                <>
+                  {weekday(date)}: {digest.data.total_count}{" "}
+                  {digest.data.total_count === 1 ? "transmission" : "transmissions"},{" "}
+                  {digest.data.interesting_count} worth hearing
+                </>
+              ) : digest.isError ? (
+                "The day's digest could not be loaded"
+              ) : (
+                "Reading the day's log…"
+              )}
+            </h1>
+          </header>
+
+          {digest.isError && (
+            <p className="text-base text-health-bad">
+              Something went wrong fetching the digest. The station itself is unaffected — try again
+              in a moment.
+            </p>
+          )}
+
+          {digest.data &&
+            (digest.data.interesting.length > 0 ? (
+              <section className="flex flex-col gap-4" aria-label="Worth hearing">
+                {featuredQueue.length > 0 && (
+                  <div className="flex justify-end">
+                    <Button
+                      variant="outline"
+                      className="min-h-10"
+                      onClick={() => player.playQueue(featuredQueue, featuredQueue[0].id)}
+                    >
+                      <Play className="size-4" />
+                      Play all worth hearing
+                    </Button>
+                  </div>
+                )}
+                {digest.data.interesting.map((clip) => (
+                  <ClipCard
+                    key={clip.id}
+                    clip={clip}
+                    variant="featured"
+                    queue={featuredQueue}
+                    expanded={expandedId === clip.id}
+                    onToggle={(id) => setExpandedId((cur) => (cur === id ? null : id))}
+                  />
+                ))}
+              </section>
             ) : (
-              "Reading the day's log…"
-            )}
-          </h1>
-        </div>
-
-        <nav className="flex items-center gap-1" aria-label="Change day">
-          <Button
-            variant="outline"
-            size="icon"
-            className="size-10"
-            aria-label="Previous day"
-            onClick={() => setDate((d) => shiftDay(d, -1))}
-          >
-            <ChevronLeft className="size-5" />
-          </Button>
-          <Button
-            variant="outline"
-            className="min-h-10"
-            disabled={isToday}
-            onClick={() => setDate(todayIso())}
-          >
-            Today
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            className="size-10"
-            aria-label="Next day"
-            disabled={isToday}
-            onClick={() => setDate((d) => shiftDay(d, 1))}
-          >
-            <ChevronRight className="size-5" />
-          </Button>
-        </nav>
-      </header>
-
-      {digest.isError && (
-        <p className="text-base text-health-bad">
-          Something went wrong fetching the digest. The station itself is unaffected — try again in
-          a moment.
-        </p>
-      )}
-
-      {digest.data &&
-        (digest.data.interesting.length > 0 ? (
-          <section className="flex flex-col gap-4" aria-label="Worth hearing">
-            {featuredQueue.length > 0 && (
-              <div className="flex justify-end">
-                <Button
-                  variant="outline"
-                  className="min-h-10"
-                  onClick={() => player.playQueue(featuredQueue, featuredQueue[0].id)}
-                >
-                  <Play className="size-4" />
-                  Play all worth hearing
-                </Button>
-              </div>
-            )}
-            {digest.data.interesting.map((clip) => (
-              <ClipCard
-                key={clip.id}
-                clip={clip}
-                variant="featured"
-                queue={featuredQueue}
-                expanded={expandedId === clip.id}
-                onToggle={(id) => setExpandedId((cur) => (cur === id ? null : id))}
-              />
+              <section className="rounded-xl border bg-card px-6 py-10 text-center">
+                <p className="text-lg">A quiet day on the airwaves — nothing flagged.</p>
+                {digest.data.total_count > 0 && (
+                  <p className="mt-2 text-base text-muted-foreground">
+                    <Link href={`/clips/?date=${date}`} className="underline underline-offset-4">
+                      Listen through all {digest.data.total_count} clips from this day
+                    </Link>
+                  </p>
+                )}
+              </section>
             ))}
-          </section>
-        ) : (
-          <section className="rounded-xl border bg-card px-6 py-10 text-center">
-            <p className="text-lg">A quiet day on the airwaves — nothing flagged.</p>
-            {digest.data.total_count > 0 && (
-              <p className="mt-2 text-base text-muted-foreground">
-                <Link href={`/clips/?date=${date}`} className="underline underline-offset-4">
-                  Listen through all {digest.data.total_count} clips from this day
-                </Link>
-              </p>
-            )}
-          </section>
-        ))}
+        </motion.div>
+      </AnimatePresence>
 
       {digest.data && digest.data.greatest_hits.length > 0 && (
         <section aria-label="Greatest hits">

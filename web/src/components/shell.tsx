@@ -8,7 +8,7 @@ import React, { useState } from "react";
 import { NamingDialog } from "@/components/naming-dialog";
 import { PlayerBar } from "@/components/player-bar";
 import { SettingsDialog } from "@/components/settings-dialog";
-import { ThemeToggle } from "@/components/theme-toggle";
+import { ThemeToggle, ThemeWash } from "@/components/theme-toggle";
 import { useStatus } from "@/lib/api/hooks";
 import { usePlayer } from "@/lib/player";
 import { useWs } from "@/lib/ws";
@@ -91,6 +91,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
 
       <NamingDialog stationName={status ? stationName : undefined} />
       <PlayerBar />
+      <ThemeWash />
     </div>
   );
 }

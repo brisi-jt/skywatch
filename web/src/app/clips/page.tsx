@@ -2,7 +2,7 @@
 
 import { Play, X } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 
 import { ClipCard, ClipCardSkeleton } from "@/components/clip-card";
 import { NewClipsPill } from "@/components/new-clips-pill";
@@ -22,6 +22,8 @@ import { playableQueue } from "@/lib/clip";
 import { freqLabel } from "@/lib/format";
 import { usePlayer } from "@/lib/player";
 import { categoryWord } from "@/lib/tiers";
+import { useStaggerGate } from "@/lib/use-stagger";
+import { useWs } from "@/lib/ws";
 
 const CATEGORIES = [
   "emergency",
@@ -70,9 +72,32 @@ function ClipsView() {
   const { data: frequencies } = useFrequencies();
   const recordings = useRecordings(filters);
   const player = usePlayer();
+  const { pendingNewClips, onNewRecording } = useWs();
 
   const items = recordings.data?.pages.flatMap((page) => page.items) ?? [];
   const total = recordings.data?.pages[0]?.total;
+  const shouldStagger = useStaggerGate(recordings.data != null && items.length > 0);
+
+  // Track clips that arrived over the stream while the pill was pending, so
+  // that the moment the reader folds them in they glow warm and decay.
+  const arrivedIds = useRef<Set<number>>(new Set());
+  const prevPending = useRef(0);
+  const [recentIds, setRecentIds] = useState<Set<number>>(new Set());
+  useEffect(
+    () => onNewRecording((summary) => arrivedIds.current.add(summary.id)),
+    [onNewRecording],
+  );
+  useEffect(() => {
+    if (prevPending.current > 0 && pendingNewClips === 0 && arrivedIds.current.size > 0) {
+      const folded = new Set(arrivedIds.current);
+      arrivedIds.current.clear();
+      setRecentIds(folded);
+      const timer = setTimeout(() => setRecentIds(new Set()), 4000);
+      prevPending.current = pendingNewClips;
+      return () => clearTimeout(timer);
+    }
+    prevPending.current = pendingNewClips;
+  }, [pendingNewClips]);
   const listQueue = playableQueue(items);
   const worthHearingQueue = playableQueue(
     items.filter((clip) => clip.classification?.is_interesting),
@@ -262,14 +287,20 @@ function ClipsView() {
       )}
 
       <section className="flex flex-col gap-4" aria-label="Clip list">
-        {items.map((clip) => (
-          <ClipCard
+        {items.map((clip, i) => (
+          <div
             key={clip.id}
-            clip={clip}
-            queue={listQueue}
-            expanded={expandedId === clip.id}
-            onToggle={(id) => setExpandedId((cur) => (cur === id ? null : id))}
-          />
+            className={shouldStagger ? "clip-enter" : undefined}
+            style={shouldStagger ? { animationDelay: `${Math.min(i, 8) * 40}ms` } : undefined}
+          >
+            <ClipCard
+              clip={clip}
+              queue={listQueue}
+              highlight={recentIds.has(clip.id)}
+              expanded={expandedId === clip.id}
+              onToggle={(id) => setExpandedId((cur) => (cur === id ? null : id))}
+            />
+          </div>
         ))}
       </section>
 

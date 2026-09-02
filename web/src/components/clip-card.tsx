@@ -42,6 +42,7 @@ export function ClipCard({
   expanded = false,
   onToggle,
   queue,
+  highlight = false,
 }: {
   clip: RecordingSummary;
   variant?: ClipCardVariant;
@@ -49,6 +50,8 @@ export function ClipCard({
   onToggle?: (id: number) => void;
   /** The ordered list this card belongs to; playing seeds the queue from it. */
   queue?: PlayerClip[];
+  /** Warm-decay tint applied when this clip has just folded in from the pill. */
+  highlight?: boolean;
 }) {
   const player = usePlayer();
   const reducedMotion = useReducedMotion();
@@ -112,6 +115,7 @@ export function ClipCard({
         interesting && "border-interesting/40",
         expanded && "border-ring/50",
         isCurrent && "ring-2 ring-interesting/60",
+        highlight && "arrival-tint",
       )}
     >
       <div className={cn("flex items-start gap-4 p-4", variant === "featured" && "p-5")}>

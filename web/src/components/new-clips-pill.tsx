@@ -29,7 +29,16 @@ export function NewClipsPill() {
             className="flex min-h-10 items-center gap-2 rounded-full bg-interesting-surface px-4 text-base font-medium text-interesting-surface-foreground transition-colors hover:opacity-90"
           >
             <Plane className="size-4" aria-hidden />
-            {pendingNewClips === 1 ? "1 new clip" : `${pendingNewClips} new clips`} — show
+            <motion.span
+              key={pendingNewClips}
+              initial={reducedMotion ? false : { scale: 1.35 }}
+              animate={{ scale: 1 }}
+              transition={{ type: "spring", stiffness: 500, damping: 18 }}
+              className="inline-block tabular-nums"
+            >
+              {pendingNewClips}
+            </motion.span>
+            {pendingNewClips === 1 ? "new clip" : "new clips"} — show
           </button>
         </motion.div>
       )}

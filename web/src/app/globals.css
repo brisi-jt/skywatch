@@ -259,6 +259,59 @@
   }
 }
 
+/* Mount-only clip stagger: each card rises in once when the list first paints.
+ * Applied only on the first render with clips (ref-latched in the page), so a
+ * WS fold-in never re-triggers the whole list. */
+@keyframes clip-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.clip-enter {
+  animation: clip-enter 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* New-arrival tint: a folded-in clip glows warm, then decays to the normal
+ * card colour. `both` fill leaves it on --card, identical to its resting bg. */
+@keyframes arrival-tint {
+  from {
+    background-color: var(--interesting-surface);
+  }
+  to {
+    background-color: var(--card);
+  }
+}
+.arrival-tint {
+  animation: arrival-tint 4s ease-out both;
+}
+
+/* Theme wash: a brief full-bleed veil in the incoming background colour on a
+ * theme swap — a soft cross-fade, not the View Transitions API. */
+@keyframes theme-wash {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 0;
+  }
+}
+.theme-wash {
+  animation: theme-wash 0.2s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .clip-enter,
+  .arrival-tint,
+  .theme-wash {
+    animation: none;
+  }
+}
+
 /* Now-playing equalizer glyph: three bars that dance only while playing.
  * Compositor-only (transform), a fixed static height when paused or when the
  * reader prefers reduced motion. */
