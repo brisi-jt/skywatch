@@ -12,12 +12,21 @@ import {
   TierChip,
 } from "@/components/chips";
 import { Button } from "@/components/ui/button";
-import type { RecordingSummary } from "@/lib/api/client";
+import type {
+  AircraftMatchResource,
+  RecordingDetail,
+  RecordingSummary,
+} from "@/lib/api/client";
 import { useFeedback, useReclassify, useRecordingDetail } from "@/lib/api/hooks";
 import { toPlayerClip } from "@/lib/clip";
 import { clockTime, durationLabel, freqLabel } from "@/lib/format";
 import { clipAnchorId, usePlayer, type PlayerClip } from "@/lib/player";
 import { isRoughTranscript, stageWord } from "@/lib/tiers";
+import {
+  activeSegmentIndex,
+  isLowConfidenceSegment,
+  tokenizeWithCallsigns,
+} from "@/lib/transcript";
 import { cn } from "@/lib/utils";
 
 export type ClipCardVariant = "default" | "featured" | "small";
@@ -313,7 +322,7 @@ function ExpandedBody({
             </h3>
             {isRoughTranscript(detail.transcript.avg_logprob) && <RoughTranscriptBadge />}
           </div>
-          <p className="mt-2 text-lg leading-relaxed">“{detail.transcript.text}”</p>
+          <TranscriptBody clip={clip} transcript={detail.transcript} matches={detail.matches} />
         </section>
       )}
 
@@ -324,7 +333,11 @@ function ExpandedBody({
           </h3>
           <ul className="mt-2 flex flex-col gap-2">
             {detail.matches.map((match) => (
-              <li key={match.id} className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <li
+                key={match.id}
+                id={`match-${match.id}`}
+                className="flex scroll-mt-24 flex-wrap items-center gap-x-3 gap-y-1"
+              >
                 <TierChip match={match} />
                 {match.alert_category && <AircraftAlertBadge category={match.alert_category} />}
                 <span className="font-mono text-sm text-muted-foreground">
@@ -462,6 +475,88 @@ function ExpandedBody({
           </dl>
         </details>
       )}
+    </div>
+  );
+}
+
+/** A transcript that follows the audio: click a segment to seek, the playing
+ * segment highlights, rough segments are shaded, and any spoken callsign links
+ * to its candidate. Falls back to plain text when the engine reported no
+ * segment timings. */
+function TranscriptBody({
+  clip,
+  transcript,
+  matches,
+}: {
+  clip: RecordingSummary;
+  transcript: NonNullable<RecordingDetail["transcript"]>;
+  matches: AircraftMatchResource[];
+}) {
+  const player = usePlayer();
+  const isCurrent = player.clip?.id === clip.id;
+  const segments = transcript.segments ?? [];
+  const activeIdx = isCurrent ? activeSegmentIndex(segments, player.position) : -1;
+
+  const seekTo = (start: number) => {
+    if (isCurrent) {
+      player.seekTo(start);
+    } else {
+      player.play(toPlayerClip(clip));
+      player.seekTo(start);
+    }
+  };
+
+  const scrollToMatch = (id: number) => {
+    document.getElementById(`match-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
+
+  const renderTokens = (text: string) =>
+    tokenizeWithCallsigns(text, matches).map((token, i) =>
+      token.matchId !== null ? (
+        <button
+          key={i}
+          type="button"
+          className="font-medium text-interesting underline-offset-2 hover:underline"
+          onClick={(event) => {
+            event.stopPropagation();
+            scrollToMatch(token.matchId as number);
+          }}
+        >
+          {token.text}
+        </button>
+      ) : (
+        <span key={i}>{token.text}</span>
+      ),
+    );
+
+  if (segments.length === 0) {
+    return <p className="mt-2 text-lg leading-relaxed">“{renderTokens(transcript.text)}”</p>;
+  }
+
+  return (
+    <div className="mt-2 flex flex-col gap-1 text-lg leading-relaxed">
+      {segments.map((seg, i) => (
+        <span
+          key={seg.id}
+          role="button"
+          tabIndex={0}
+          aria-current={i === activeIdx}
+          onClick={() => seekTo(seg.start_s)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              seekTo(seg.start_s);
+            }
+          }}
+          className={cn(
+            "-mx-1 cursor-pointer rounded px-1 transition-colors hover:bg-accent/50",
+            i === activeIdx && "bg-interesting-surface text-interesting-surface-foreground",
+            isLowConfidenceSegment(seg.avg_word_prob) && "text-muted-foreground italic",
+          )}
+        >
+          {renderTokens(seg.text)}
+        </span>
+      ))}
     </div>
   );
 }
