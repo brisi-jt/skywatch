@@ -288,7 +288,9 @@ class TestEnricher:
         states_route = respx.get(STATES_URL).mock(
             return_value=httpx.Response(200, json=_states_payload())
         )
-        started = datetime.now(UTC)
+        # A fixed mid-bucket instant so the two clips cannot straddle a bucket
+        # boundary (which would legitimately cost two lookups and flake CI).
+        started = datetime(2026, 1, 1, 12, 5, 0, tzinfo=UTC)
         rec1, freq = _recording(session, started=started)
         rec2, _ = _recording(session, started=started + timedelta(seconds=3))
         enricher = _enricher(bucket_seconds=600)
