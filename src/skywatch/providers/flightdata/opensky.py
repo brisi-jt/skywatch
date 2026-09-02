@@ -234,6 +234,7 @@ class OpenSkyEnricher:
         airlines: AirlineDirectory,
         candidate_limit: int = 5,
         cache_size: int = 32,
+        plane_alert=None,
     ) -> None:
         self._client = client
         self._receiver_lat = receiver_lat
@@ -242,6 +243,7 @@ class OpenSkyEnricher:
         self._bucket_seconds = max(1, bucket_seconds)
         self.daily_credit_cap = daily_credit_cap
         self._airlines = airlines
+        self._plane_alert = plane_alert
         self._candidate_limit = candidate_limit
         self._cache_size = cache_size
         self._bbox = bbox_around(receiver_lat, receiver_lon, radius_km)
@@ -303,6 +305,9 @@ class OpenSkyEnricher:
                 match_confidence=candidate.match_confidence,
                 rank=candidate.rank,
                 queried_at=queried_at,
+                alert_category=(
+                    self._plane_alert.lookup(state.icao24) if self._plane_alert else None
+                ),
             )
             session.add(match)
             matches.append(match)

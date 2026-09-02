@@ -17,14 +17,14 @@ import logging
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from skywatch.db.enums import (
     ClassificationCategory,
     ClassificationSource,
     ClassificationStatus,
 )
-from skywatch.db.models import Classification, Frequency, Recording, Transcript
+from skywatch.db.models import AircraftMatch, Classification, Frequency, Recording, Transcript
 from skywatch.pipeline import budget
 from skywatch.pipeline.prefilters import PrefilterVerdict, run_prefilters
 from skywatch.providers.llm.base import (
@@ -46,6 +46,26 @@ _MIN_SCALE = 0.5
 
 class ClassifyFailed(RuntimeError):
     """Every provider errored; the stage should be retried later."""
+
+
+def best_aircraft_alert(session: Session, recording_id: int) -> tuple[str, int] | None:
+    """The best-ranked probable aircraft flagged interesting, or None.
+
+    Returns ``(category, rank)`` for the highest-ranked candidate carrying a
+    plane-alert category, so the prefilter can flag the clip accordingly.
+    """
+    row = session.exec(
+        select(AircraftMatch.alert_category, AircraftMatch.rank)
+        .where(
+            AircraftMatch.recording_id == recording_id,
+            AircraftMatch.alert_category.is_not(None),  # type: ignore[union-attr]
+        )
+        .order_by(AircraftMatch.rank)  # type: ignore[arg-type]
+    ).first()
+    if row is None:
+        return None
+    category, rank = row
+    return category, rank
 
 
 def _commit_budget_call(session: Session, provider, day: date) -> None:
@@ -153,6 +173,7 @@ def run_classify(
         freq_category=frequency.category,
         recent_durations=recent_durations,
         watch_phrases=watch_phrases,
+        aircraft_alert=best_aircraft_alert(session, recording.id),
     )
 
     skip_reason = None

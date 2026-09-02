@@ -189,6 +189,13 @@ class AircraftMatch(TimestampMixin, table=True):
     match_confidence: float
     rank: int
     queried_at: datetime = Field(sa_type=UTCDateTime)
+    alert_category: str | None = None
+    """A curated 'interesting airframe' category (e.g. Military, Historic)
+    from the plane-alert database, keyed by icao24; null when not listed.
+    A free-text string, not an enum: the upstream categories change often."""
+    registration: str | None = None
+    aircraft_type: str | None = None
+    operator_name: str | None = None
 
 
 class Feedback(TimestampMixin, table=True):

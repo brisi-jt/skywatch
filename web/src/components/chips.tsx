@@ -1,4 +1,4 @@
-import { BadgeCheck } from "lucide-react";
+import { BadgeCheck, Star } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import type { AircraftMatchResource } from "@/lib/api/client";
@@ -43,6 +43,16 @@ export function RoutineBadge({ category }: { category: string }) {
   return (
     <Badge variant="secondary" className="text-sm font-normal text-muted-foreground">
       {categoryWord(category)}
+    </Badge>
+  );
+}
+
+/** Curated "interesting airframe" category from the plane-alert database. */
+export function AircraftAlertBadge({ category }: { category: string }) {
+  return (
+    <Badge className="gap-1 bg-interesting-surface text-sm text-interesting-surface-foreground">
+      <Star className="size-3.5" aria-hidden />
+      {category}
     </Badge>
   );
 }

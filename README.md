@@ -35,6 +35,12 @@ prefixes to airline names. It is made available under the
 [Open Database License (ODbL) 1.0](https://opendatacommons.org/licenses/odbl/1-0/);
 the data itself is under the Database Contents License 1.0.
 
+`content/plane_alert_db.csv` badges probable aircraft with a curated category
+(military, government, historic, and so on) from
+[plane-alert-db](https://github.com/sdr-enthusiasts/plane-alert-db), keyed by
+ICAO hex. The repository ships only the header; run
+`scripts/update_plane_alert_db.sh` to download the current list.
+
 ## Quickstart
 
 Requires Python 3.12 managed by [uv](https://docs.astral.sh/uv/).

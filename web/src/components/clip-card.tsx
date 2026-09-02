@@ -5,6 +5,7 @@ import { ChevronDown, Play, RefreshCcw, ThumbsDown, ThumbsUp } from "lucide-reac
 import { useEffect, useRef, useState } from "react";
 
 import {
+  AircraftAlertBadge,
   InterestingBadge,
   RoughTranscriptBadge,
   RoutineBadge,
@@ -164,8 +165,11 @@ export function ClipCard({
           )}
 
           {clip.top_match && !expanded && (
-            <div className="mt-3">
+            <div className="mt-3 flex flex-wrap items-center gap-2">
               <TierChip match={clip.top_match} />
+              {clip.top_match.alert_category && (
+                <AircraftAlertBadge category={clip.top_match.alert_category} />
+              )}
             </div>
           )}
         </div>
@@ -322,6 +326,7 @@ function ExpandedBody({
             {detail.matches.map((match) => (
               <li key={match.id} className="flex flex-wrap items-center gap-x-3 gap-y-1">
                 <TierChip match={match} />
+                {match.alert_category && <AircraftAlertBadge category={match.alert_category} />}
                 <span className="font-mono text-sm text-muted-foreground">
                   {match.alt_ft != null && `${Math.round(match.alt_ft).toLocaleString()} ft`}
                   {match.alt_ft != null && match.gs_kt != null && " · "}

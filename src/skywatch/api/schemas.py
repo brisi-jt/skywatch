@@ -191,6 +191,13 @@ class AircraftMatchResource(BaseModel):
     match_confidence: float = Field(description="Ranking confidence in [0, 1].")
     rank: int = Field(description="1 is the most plausible candidate.")
     queried_at: datetime
+    alert_category: str | None = Field(
+        default=None,
+        description=(
+            "A curated 'interesting airframe' category (e.g. Military, Historic) "
+            "from the plane-alert database, or null when the aircraft is not listed."
+        ),
+    )
 
 
 class FeedbackCounts(BaseModel):

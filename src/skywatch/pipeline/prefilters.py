@@ -20,6 +20,13 @@ GUARD_FLAG = "guard_frequency"
 DURATION_OUTLIER_FLAG = "duration_outlier"
 WATCH_PHRASE_PREFIX = "watch_phrase:"
 _WATCH_PHRASE_CONFIDENCE = 0.9
+INTERESTING_AIRCRAFT_PREFIX = "interesting_aircraft:"
+
+
+def _aircraft_alert_confidence(rank: int) -> float:
+    """Confidence for an interesting-aircraft flag, strongest for rank 1."""
+    return max(0.4, 0.8 - 0.1 * (max(1, rank) - 1))
+
 
 # (canonical keyword, matching variants, category). Matching is
 # case-insensitive on hyphen-normalised text; every variant of a keyword
@@ -153,6 +160,7 @@ def run_prefilters(
     freq_category: FrequencyCategory,
     recent_durations: Sequence[float] = (),
     watch_phrases: Sequence[str] = (),
+    aircraft_alert: tuple[str, int] | None = None,
 ) -> PrefilterVerdict:
     flags: list[str] = []
     categories: list[ClassificationCategory] = []
@@ -188,6 +196,13 @@ def run_prefilters(
         categories.append(ClassificationCategory.UNUSUAL)
         reasons.append(f"duration {duration_s:.1f}s is a channel outlier")
         confidence = max(confidence, _OUTLIER_CONFIDENCE)
+
+    if aircraft_alert is not None:
+        category_name, rank = aircraft_alert
+        flags.append(f"{INTERESTING_AIRCRAFT_PREFIX}{category_name}")
+        categories.append(ClassificationCategory.UNUSUAL)
+        reasons.append(f"interesting aircraft nearby: {category_name} (rank {rank})")
+        confidence = max(confidence, _aircraft_alert_confidence(rank))
 
     if not flags:
         return PrefilterVerdict()

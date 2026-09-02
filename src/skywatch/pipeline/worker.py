@@ -37,7 +37,7 @@ from skywatch.pipeline.retention import (
     check_disk,
     prune_routine_audio,
 )
-from skywatch.pipeline.stages.classify import run_classify
+from skywatch.pipeline.stages.classify import best_aircraft_alert, run_classify
 from skywatch.pipeline.stages.enrich import run_enrich
 from skywatch.pipeline.stages.transcribe import callsign_hotwords, run_transcribe
 from skywatch.pipeline.watch_phrases import load_watch_phrases
@@ -369,6 +369,7 @@ class PipelineWorker:
                     duration_s=recording.duration_s,
                     freq_category=frequency.category,
                     watch_phrases=watch_phrases,
+                    aircraft_alert=best_aircraft_alert(session, recording.id),
                 )
                 candidates.append((verdict.is_interesting, recording.id))
         # Prefilter-flagged clips go through the (budgeted) LLM first.
@@ -623,6 +624,7 @@ def build_worker(settings: Settings, engine=None) -> PipelineWorker:
     from skywatch.providers.asr import create_asr_engine
     from skywatch.providers.flightdata.airlines import AirlineDirectory
     from skywatch.providers.flightdata.opensky import OpenSkyClient, OpenSkyEnricher
+    from skywatch.providers.flightdata.plane_alert import PlaneAlertDb
     from skywatch.providers.llm import build_classifier_chain
     from skywatch.tuning import TuningService
 
@@ -642,6 +644,7 @@ def build_worker(settings: Settings, engine=None) -> PipelineWorker:
         groq_api_key=settings.groq_api_key,
     )
     airlines = AirlineDirectory.load(_repo_relative("content") / "airlines.dat")
+    plane_alert = PlaneAlertDb.load(_repo_relative("content") / "plane_alert_db.csv")
 
     enricher = None
     if settings.enrichment.provider == "opensky":
@@ -661,6 +664,7 @@ def build_worker(settings: Settings, engine=None) -> PipelineWorker:
                 bucket_seconds=settings.enrichment.bucket_seconds,
                 daily_credit_cap=settings.enrichment.daily_credit_cap,
                 airlines=airlines,
+                plane_alert=plane_alert,
             )
 
     watcher = RecordingWatcher(engine, recordings_dir, data_root=data_root)

@@ -319,4 +319,5 @@ def _match_resource(row: AircraftMatch) -> AircraftMatchResource:
         match_confidence=row.match_confidence,
         rank=row.rank,
         queried_at=row.queried_at,
+        alert_category=row.alert_category,
     )

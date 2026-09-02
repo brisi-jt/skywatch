@@ -506,6 +506,11 @@ export interface components {
              * Format: date-time
              */
             queried_at: string;
+            /**
+             * Alert Category
+             * @description A curated 'interesting airframe' category (e.g. Military, Historic) from the plane-alert database, or null when the aircraft is not listed.
+             */
+            alert_category?: string | null;
         };
         /**
          * AppliedTuning

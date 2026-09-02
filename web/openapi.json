@@ -1257,6 +1257,18 @@
             "type": "string",
             "format": "date-time",
             "title": "Queried At"
+          },
+          "alert_category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alert Category",
+            "description": "A curated 'interesting airframe' category (e.g. Military, Historic) from the plane-alert database, or null when the aircraft is not listed."
           }
         },
         "type": "object",
