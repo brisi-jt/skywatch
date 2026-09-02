@@ -40,6 +40,17 @@ describe("queueReducer", () => {
     expect(hasNext(next)).toBe(true);
   });
 
+  it("steps back to the previous clip, stopping at the head", () => {
+    let state = queueReducer(emptyQueue, { type: "seed", items: list, startId: 3 });
+    state = queueReducer(state, { type: "back" });
+    expect(currentItem(state)?.id).toBe(2);
+    state = queueReducer(state, { type: "back" });
+    expect(currentItem(state)?.id).toBe(1);
+    // already at the head — back is a no-op
+    state = queueReducer(state, { type: "back" });
+    expect(currentItem(state)?.id).toBe(1);
+  });
+
   it("stops at the end rather than wrapping", () => {
     let state = queueReducer(emptyQueue, { type: "seed", items: list, startId: 3 });
     expect(hasNext(state)).toBe(false);

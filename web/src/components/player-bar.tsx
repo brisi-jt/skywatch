@@ -1,7 +1,16 @@
 "use client";
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { Pause, Play, RotateCcw, RotateCw } from "lucide-react";
+import {
+  Crosshair,
+  Pause,
+  Play,
+  RotateCcw,
+  RotateCw,
+  SkipBack,
+  SkipForward,
+  X,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { durationLabel } from "@/lib/format";
@@ -27,7 +36,17 @@ export function PlayerBar() {
           role="region"
           aria-label="Audio player"
         >
-          <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 sm:px-6">
+          <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 sm:px-6">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-10"
+              onClick={player.prev}
+              disabled={!player.hasPrev}
+              aria-label="Previous clip"
+            >
+              <SkipBack className="size-5" />
+            </Button>
             <Button
               size="icon"
               className="size-12 rounded-full"
@@ -35,6 +54,16 @@ export function PlayerBar() {
               aria-label={player.playing ? "Pause" : "Play"}
             >
               {player.playing ? <Pause className="size-6" /> : <Play className="size-6 translate-x-0.5" />}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-10"
+              onClick={player.next}
+              disabled={!player.hasNext}
+              aria-label="Next clip"
+            >
+              <SkipForward className="size-5" />
             </Button>
 
             <Button
@@ -97,7 +126,35 @@ export function PlayerBar() {
                 </button>
               ))}
             </div>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-10"
+              onClick={player.jumpToPlaying}
+              aria-label="Jump to the clip that's playing"
+              title="Jump to the clip that's playing"
+            >
+              <Crosshair className="size-5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-10"
+              onClick={player.dismiss}
+              aria-label="Close the player"
+              title="Close the player"
+            >
+              <X className="size-5" />
+            </Button>
           </div>
+
+          <p className="mx-auto hidden w-full max-w-5xl px-4 pb-2 text-xs text-muted-foreground sm:block sm:px-6">
+            Keyboard: <kbd className="font-mono">Space</kbd> play · <kbd className="font-mono">←</kbd>{" "}
+            <kbd className="font-mono">→</kbd> skip 5s · <kbd className="font-mono">J</kbd>{" "}
+            <kbd className="font-mono">K</kbd> next / previous clip
+          </p>
+
           {player.error && (
             <p className="mx-auto w-full max-w-5xl px-4 pb-2 text-sm text-health-bad sm:px-6">
               {player.error}

@@ -11,6 +11,8 @@ export interface QueueItem {
   id: number;
   title: string;
   subtitle: string;
+  /** Whether the clip is worth hearing — carried through for the earcon. */
+  interesting?: boolean;
 }
 
 export interface QueueState {
@@ -24,6 +26,7 @@ export const emptyQueue: QueueState = { items: [], index: 0 };
 export type QueueAction =
   | { type: "seed"; items: QueueItem[]; startId: number }
   | { type: "advance" }
+  | { type: "back" }
   | { type: "remove"; id: number }
   | { type: "clear" };
 
@@ -46,6 +49,10 @@ export function queueReducer(state: QueueState, action: QueueAction): QueueState
     case "advance": {
       // Clamp to items.length: one step past the last clip means "stopped".
       return { ...state, index: Math.min(state.index + 1, state.items.length) };
+    }
+    case "back": {
+      // Step to the previous clip; never before the head.
+      return { ...state, index: Math.max(state.index - 1, 0) };
     }
     case "remove": {
       const removedAt = state.items.findIndex((item) => item.id === action.id);

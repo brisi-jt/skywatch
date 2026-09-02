@@ -13,8 +13,9 @@ import {
 import { Button } from "@/components/ui/button";
 import type { RecordingSummary } from "@/lib/api/client";
 import { useFeedback, useReclassify, useRecordingDetail } from "@/lib/api/hooks";
-import { clockTime, durationLabel, freqLabel, friendlyDate, localDay, mhz } from "@/lib/format";
-import { usePlayer } from "@/lib/player";
+import { toPlayerClip } from "@/lib/clip";
+import { clockTime, durationLabel, freqLabel } from "@/lib/format";
+import { clipAnchorId, usePlayer, type PlayerClip } from "@/lib/player";
 import { isRoughTranscript, stageWord } from "@/lib/tiers";
 import { cn } from "@/lib/utils";
 
@@ -40,11 +41,14 @@ export function ClipCard({
   variant = "default",
   expanded = false,
   onToggle,
+  queue,
 }: {
   clip: RecordingSummary;
   variant?: ClipCardVariant;
   expanded?: boolean;
   onToggle?: (id: number) => void;
+  /** The ordered list this card belongs to; playing seeds the queue from it. */
+  queue?: PlayerClip[];
 }) {
   const player = usePlayer();
   const reducedMotion = useReducedMotion();
@@ -59,16 +63,31 @@ export function ClipCard({
 
   const interesting = clip.classification?.is_interesting ?? false;
   const title = `${clockTime(clip.started_at_utc)} · ${clip.frequency.label}`;
-  const subtitle = `${mhz(clip.frequency.mhz)} MHz · ${friendlyDate(localDay(clip.started_at_utc))}`;
   const isCurrent = player.clip?.id === clip.id;
+
+  const startPlay = () => {
+    if (isCurrent) {
+      player.toggle();
+    } else if (queue && queue.length > 0) {
+      player.playQueue(queue, clip.id);
+    } else {
+      player.play(toPlayerClip(clip));
+    }
+  };
 
   if (variant === "small") {
     return (
-      <div className="flex items-center gap-3 rounded-lg border bg-card px-3 py-2">
+      <div
+        id={clipAnchorId(clip.id)}
+        className={cn(
+          "flex items-center gap-3 rounded-lg border bg-card px-3 py-2",
+          isCurrent && "ring-2 ring-interesting/60",
+        )}
+      >
         <PlayButton
           available={clip.audio_available}
           playing={isCurrent && player.playing}
-          onClick={() => (isCurrent ? player.toggle() : player.play({ id: clip.id, title, subtitle }))}
+          onClick={startPlay}
           size="sm"
         />
         <div className="min-w-0">
@@ -87,17 +106,19 @@ export function ClipCard({
   return (
     <article
       ref={ref}
+      id={clipAnchorId(clip.id)}
       className={cn(
         "rounded-xl border bg-card transition-colors",
         interesting && "border-interesting/40",
         expanded && "border-ring/50",
+        isCurrent && "ring-2 ring-interesting/60",
       )}
     >
       <div className={cn("flex items-start gap-4 p-4", variant === "featured" && "p-5")}>
         <PlayButton
           available={clip.audio_available}
           playing={isCurrent && player.playing}
-          onClick={() => (isCurrent ? player.toggle() : player.play({ id: clip.id, title, subtitle }))}
+          onClick={startPlay}
         />
 
         <div className="min-w-0 flex-1">
@@ -105,6 +126,7 @@ export function ClipCard({
             <span className={cn("font-medium", variant === "featured" && "text-lg")}>
               {clockTime(clip.started_at_utc)}
             </span>
+            {isCurrent && <NowPlaying playing={player.playing} />}
             <span className="font-mono text-sm text-readout">
               {freqLabel(clip.frequency.mhz, clip.frequency.label)}
             </span>
@@ -171,6 +193,27 @@ export function ClipCard({
         )}
       </AnimatePresence>
     </article>
+  );
+}
+
+/** The now-playing marker: an equalizer glyph that animates only while playing. */
+function NowPlaying({ playing }: { playing: boolean }) {
+  return (
+    <span
+      className="inline-flex items-end gap-0.5"
+      role="img"
+      aria-label={playing ? "Now playing" : "Loaded in the player"}
+      title={playing ? "Now playing" : "Loaded in the player"}
+    >
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          data-playing={playing}
+          className="eq-bar w-0.5 rounded-full bg-interesting"
+          style={{ animationDelay: `${i * 0.16}s` }}
+        />
+      ))}
+    </span>
   );
 }
 

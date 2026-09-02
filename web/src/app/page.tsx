@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Play } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -14,7 +14,9 @@ import {
   useHasAnyRecording,
   useStatus,
 } from "@/lib/api/hooks";
+import { playableQueue } from "@/lib/clip";
 import { friendlyDate, shiftDay, todayIso, weekday } from "@/lib/format";
+import { usePlayer } from "@/lib/player";
 
 export default function TodayPage() {
   const [date, setDate] = useState(todayIso);
@@ -22,7 +24,11 @@ export default function TodayPage() {
   const { data: hasAny, isPending: anyPending } = useHasAnyRecording();
   const digest = useDigest(date);
   const { data: frequencies } = useFrequencies();
+  const player = usePlayer();
   const [expandedId, setExpandedId] = useState<number | null>(null);
+
+  const featuredQueue = digest.data ? playableQueue(digest.data.interesting) : [];
+  const hitsQueue = digest.data ? playableQueue(digest.data.greatest_hits) : [];
 
   const isToday = date === todayIso();
   const activeCount = frequencies?.items.filter((f) => f.is_active).length;
@@ -95,11 +101,24 @@ export default function TodayPage() {
       {digest.data &&
         (digest.data.interesting.length > 0 ? (
           <section className="flex flex-col gap-4" aria-label="Worth hearing">
+            {featuredQueue.length > 0 && (
+              <div className="flex justify-end">
+                <Button
+                  variant="outline"
+                  className="min-h-10"
+                  onClick={() => player.playQueue(featuredQueue, featuredQueue[0].id)}
+                >
+                  <Play className="size-4" />
+                  Play all worth hearing
+                </Button>
+              </div>
+            )}
             {digest.data.interesting.map((clip) => (
               <ClipCard
                 key={clip.id}
                 clip={clip}
                 variant="featured"
+                queue={featuredQueue}
                 expanded={expandedId === clip.id}
                 onToggle={(id) => setExpandedId((cur) => (cur === id ? null : id))}
               />
@@ -124,7 +143,7 @@ export default function TodayPage() {
           <p className="text-sm text-muted-foreground">The clips you keep coming back to.</p>
           <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
             {digest.data.greatest_hits.map((clip) => (
-              <ClipCard key={clip.id} clip={clip} variant="small" />
+              <ClipCard key={clip.id} clip={clip} variant="small" queue={hitsQueue} />
             ))}
           </div>
         </section>

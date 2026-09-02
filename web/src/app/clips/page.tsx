@@ -1,5 +1,6 @@
 "use client";
 
+import { Play } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
@@ -17,7 +18,9 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useFrequencies, useRecordingDetail, useRecordings, type ClipFilters } from "@/lib/api/hooks";
+import { playableQueue } from "@/lib/clip";
 import { freqLabel } from "@/lib/format";
+import { usePlayer } from "@/lib/player";
 import { categoryWord } from "@/lib/tiers";
 
 const CATEGORIES = [
@@ -66,9 +69,14 @@ function ClipsView() {
 
   const { data: frequencies } = useFrequencies();
   const recordings = useRecordings(filters);
+  const player = usePlayer();
 
   const items = recordings.data?.pages.flatMap((page) => page.items) ?? [];
   const total = recordings.data?.pages[0]?.total;
+  const listQueue = playableQueue(items);
+  const worthHearingQueue = playableQueue(
+    items.filter((clip) => clip.classification?.is_interesting),
+  );
 
   // A deep-linked clip that isn't in the visible pages still gets shown.
   const linkedId = linkedClip ? Number(linkedClip) : null;
@@ -158,6 +166,19 @@ function ClipsView() {
         </label>
       </section>
 
+      {worthHearingQueue.length > 0 && (
+        <div className="flex justify-end">
+          <Button
+            variant="outline"
+            className="min-h-10"
+            onClick={() => player.playQueue(worthHearingQueue, worthHearingQueue[0].id)}
+          >
+            <Play className="size-4" />
+            Play all worth hearing
+          </Button>
+        </div>
+      )}
+
       <NewClipsPill />
 
       {linkedId != null && !linkedVisible && <LinkedClip id={linkedId} />}
@@ -190,6 +211,7 @@ function ClipsView() {
           <ClipCard
             key={clip.id}
             clip={clip}
+            queue={listQueue}
             expanded={expandedId === clip.id}
             onToggle={(id) => setExpandedId((cur) => (cur === id ? null : id))}
           />

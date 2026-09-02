@@ -232,6 +232,33 @@
   }
 }
 
+/* Now-playing equalizer glyph: three bars that dance only while playing.
+ * Compositor-only (transform), a fixed static height when paused or when the
+ * reader prefers reduced motion. */
+@keyframes eq-bounce {
+  0%,
+  100% {
+    transform: scaleY(0.35);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+.eq-bar {
+  height: 0.85rem;
+  transform-origin: bottom;
+  transform: scaleY(0.4);
+}
+.eq-bar[data-playing="true"] {
+  animation: eq-bounce 0.9s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .eq-bar[data-playing="true"] {
+    animation: none;
+    transform: scaleY(0.7);
+  }
+}
+
 /*
  * Tuning bench materials — skeuomorphism as material, never as control.
  * Everything below is texture and light; interaction stays plain buttons,
