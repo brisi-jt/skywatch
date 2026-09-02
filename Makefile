@@ -1,4 +1,4 @@
-.PHONY: lint lint-ops test migrate seed run-api run-worker
+.PHONY: lint lint-ops test eval-asr migrate seed run-api run-worker
 
 lint:
 	uv run ruff check .
@@ -11,6 +11,11 @@ lint-ops:
 
 test:
 	uv run pytest -m "not eval and not network"
+
+# Dev-box only: downloads ASR models, never run in CI. Compares base.en with
+# an ATC-tuned model on the labelled eval set.
+eval-asr:
+	uv run python scripts/eval_asr.py
 
 migrate:
 	uv run alembic upgrade head

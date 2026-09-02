@@ -15,6 +15,9 @@ fixtures/fetched/
 build/
 bin/
 
+# Downloaded ASR models (fetched on the dev box for the A/B eval)
+models/
+
 # Python
 .venv/
 __pycache__/
