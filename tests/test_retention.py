@@ -15,8 +15,8 @@ from skywatch.db.enums import (
     FrequencyCategory,
     RecordingStage,
 )
-from skywatch.db.models import Classification, Frequency, Recording
-from skywatch.pipeline.retention import check_disk, prune_routine_audio
+from skywatch.db.models import Classification, Frequency, Heartbeat, Recording
+from skywatch.pipeline.retention import check_disk, prune_old_heartbeats, prune_routine_audio
 
 NOW = datetime(2026, 7, 16, 12, 0, tzinfo=UTC)
 
@@ -126,6 +126,43 @@ class TestPruner:
         session.commit()
         session.refresh(rec)
         assert rec.audio_deleted_at is not None
+
+
+def _heartbeat(session, *, age_days: float) -> Heartbeat:
+    from sqlalchemy import update
+
+    row = Heartbeat(
+        capture_running=True,
+        queue_depths={"captured": 0},
+        disk_free_gb=10.0,
+        llm_remaining=900,
+        opensky_remaining=3000,
+    )
+    session.add(row)
+    session.commit()
+    session.refresh(row)
+    backdated = NOW - timedelta(days=age_days)
+    session.exec(update(Heartbeat).where(Heartbeat.id == row.id).values(created_at=backdated))
+    session.commit()
+    session.refresh(row)
+    return row
+
+
+class TestHeartbeatPruner:
+    def test_old_heartbeats_pruned(self, session):
+        old = _heartbeat(session, age_days=91)
+        recent = _heartbeat(session, age_days=10)
+        pruned = prune_old_heartbeats(session, retention_days=90, now=NOW)
+        session.commit()
+        assert pruned == 1
+        remaining_ids = {row.id for row in session.exec(select(Heartbeat)).all()}
+        assert remaining_ids == {recent.id}
+        assert old.id not in remaining_ids
+
+    def test_recent_heartbeats_kept(self, session):
+        _heartbeat(session, age_days=1)
+        assert prune_old_heartbeats(session, retention_days=90, now=NOW) == 0
+        assert len(session.exec(select(Heartbeat)).all()) == 1
 
 
 class TestDiskGuard:

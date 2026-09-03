@@ -4,6 +4,7 @@ import { ArrowRight, CircleCheck, CircleAlert, CircleX } from "lucide-react";
 
 import { HealthChip } from "@/components/chips";
 import { deriveHealth } from "@/components/health-strip";
+import { HealthHistorySparkline } from "@/components/health-history-sparkline";
 import { FrequencyTable } from "@/components/frequency-table";
 import { GaugeBar } from "@/components/gauge-bar";
 import { TuningEntryCard } from "@/components/tuning/entry-card";
@@ -68,6 +69,9 @@ export default function StationPage() {
         {s.capture.detail && (
           <p className="mt-3 text-base text-muted-foreground">{s.capture.detail}</p>
         )}
+        <div className="mt-4 max-w-md">
+          <HealthHistorySparkline />
+        </div>
       </section>
 
       {/* Layer 2 — the instrument panel */}

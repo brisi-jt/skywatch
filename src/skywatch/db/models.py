@@ -256,3 +256,25 @@ class IncidentClip(TimestampMixin, table=True):
     incident_id: int = Field(foreign_key="incidents.id", index=True)
     recording_id: int = Field(foreign_key="recordings.id", index=True)
     position: int = Field(description="Playback order within the incident, 0-based.")
+
+
+class Heartbeat(TimestampMixin, table=True):
+    """One snapshot of station health, written each worker maintenance pass.
+
+    ``created_at`` (from the mixin) is the moment the snapshot was taken; the
+    Station view's health strip reads a run of these as a sparkline.
+    """
+
+    __tablename__ = "heartbeats"
+
+    id: int | None = Field(default=None, primary_key=True)
+    capture_running: bool
+    queue_depths: dict[str, int] = Field(
+        default_factory=dict, sa_column=Column(JSON, nullable=False)
+    )
+    disk_free_gb: float
+    llm_remaining: int | None = None
+    """Calls left today against the tightest LLM provider's daily cap; null
+    when no classifier chain is configured."""
+    opensky_remaining: int | None = None
+    """OpenSky credits left today; null when flight-data enrichment is off."""

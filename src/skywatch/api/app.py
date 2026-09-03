@@ -26,6 +26,7 @@ from skywatch.api.routes import (
     digest,
     eval,
     frequencies,
+    health,
     incidents,
     recordings,
     sky,
@@ -240,6 +241,7 @@ def create_app(
     register_error_handlers(app)
 
     app.include_router(status.router)
+    app.include_router(health.router)
     app.include_router(frequencies.router)
     app.include_router(recordings.router)
     app.include_router(clips.router)

@@ -28,14 +28,17 @@ from sqlmodel import Session, select
 
 from skywatch.db.engine import create_db_engine, default_db_path, session_scope
 from skywatch.db.enums import RecordingStage
-from skywatch.db.models import Classification, Frequency, Recording, Setting, Transcript
+from skywatch.db.models import Classification, Frequency, Heartbeat, Recording, Setting, Transcript
 from skywatch.pipeline import budget, narrative
 from skywatch.pipeline.prefilters import run_prefilters
 from skywatch.pipeline.retention import (
     CAPTURE_PAUSED_KEY,
     DEEP_TUNE_ACTIVE_KEY,
     DEEP_TUNE_HEARTBEAT_TTL_S,
+    HEARTBEAT_RETENTION_DAYS,
+    DiskStatus,
     check_disk,
+    prune_old_heartbeats,
     prune_routine_audio,
 )
 from skywatch.pipeline.stages.classify import best_aircraft_alert, run_classify
@@ -544,9 +547,48 @@ class PipelineWorker:
             logger.exception("retention pruning failed; will retry next pass")
 
         try:
+            with session_scope(self._engine) as session:
+                self._write_heartbeat(session, disk)
+                prune_old_heartbeats(session, retention_days=HEARTBEAT_RETENTION_DAYS)
+        except Exception:
+            logger.exception("health heartbeat failed; will retry next pass")
+
+        try:
             self._maybe_generate_narrative()
         except Exception:
             logger.exception("daily narrative generation failed; will retry next pass")
+
+    def _write_heartbeat(self, session: Session, disk: DiskStatus) -> None:
+        """One health snapshot per maintenance pass, for the Station sparkline."""
+        today = datetime.now(UTC).date()
+        llm_remaining = None
+        if self._chain:
+            llm_remaining = min(
+                budget.remaining(session, classifier.provider, today, self.daily_call_cap)
+                for classifier in self._chain
+            )
+        opensky_remaining = None
+        if self._enricher is not None:
+            from skywatch.db.enums import ApiProvider
+
+            opensky_remaining = budget.remaining(
+                session,
+                ApiProvider.OPENSKY,
+                today,
+                getattr(self._enricher, "daily_credit_cap", 0),
+            )
+        running = (
+            self._capture_source.status().running if self._capture_source is not None else False
+        )
+        session.add(
+            Heartbeat(
+                capture_running=running,
+                queue_depths=queue_depths(session),
+                disk_free_gb=disk.free_gb,
+                llm_remaining=llm_remaining,
+                opensky_remaining=opensky_remaining,
+            )
+        )
 
     def _maybe_generate_narrative(self) -> None:
         """Write today's narrative once, if a classifier chain is configured.

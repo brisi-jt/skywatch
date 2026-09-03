@@ -15,9 +15,12 @@ from pathlib import Path
 
 from sqlmodel import Session, select
 
-from skywatch.db.models import Classification, Recording, utcnow
+from skywatch.db.models import Classification, Heartbeat, Recording, utcnow
 
 logger = logging.getLogger(__name__)
+
+HEARTBEAT_RETENTION_DAYS = 90
+"""How long health-history snapshots are kept before pruning."""
 
 CAPTURE_PAUSED_KEY = "capture.paused_for_disk"
 """Settings-table key the worker writes ("1"/"0") when the disk guard trips."""
@@ -102,3 +105,20 @@ def prune_routine_audio(
             "pruned audio for %d routine clip(s) older than %d days", pruned, retention_days
         )
     return pruned
+
+
+def prune_old_heartbeats(
+    session: Session,
+    *,
+    retention_days: int = HEARTBEAT_RETENTION_DAYS,
+    now: datetime | None = None,
+) -> int:
+    """Delete health-history snapshots older than the retention window."""
+    now = now or utcnow()
+    cutoff = now - timedelta(days=retention_days)
+    stale = session.exec(select(Heartbeat).where(Heartbeat.created_at < cutoff)).all()
+    for row in stale:
+        session.delete(row)
+    if stale:
+        logger.info("pruned %d heartbeat(s) older than %d days", len(stale), retention_days)
+    return len(stale)

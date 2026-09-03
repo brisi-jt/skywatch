@@ -28,6 +28,92 @@
         }
       }
     },
+    "/health/history": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Station health over time",
+        "description": "A run of health snapshots taken during the worker's maintenance pass: whether capture was running, pipeline queue depths, free disk, and the classifier/flight-data budgets remaining. Defaults to the last seven days, oldest first, when `since` is omitted.",
+        "operationId": "get_health_history_health_history_get",
+        "parameters": [
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Earliest snapshot to include (UTC).",
+              "title": "Since"
+            },
+            "description": "Earliest snapshot to include (UTC)."
+          },
+          {
+            "name": "until",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Latest snapshot to include (UTC).",
+              "title": "Until"
+            },
+            "description": "Latest snapshot to include (UTC)."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 2000,
+              "minimum": 1,
+              "description": "Snapshots to return.",
+              "default": 500,
+              "title": "Limit"
+            },
+            "description": "Snapshots to return."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthHistoryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/frequencies": {
       "get": {
         "tags": [
@@ -3019,6 +3105,104 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "HealthHistoryResponse": {
+        "properties": {
+          "_links": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "type": "object",
+            "title": "Links",
+            "description": "HAL links: self plus related resources and the actions currently available on this resource."
+          },
+          "since": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Since"
+          },
+          "until": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Until"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/HeartbeatResource"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "since",
+          "until",
+          "items"
+        ],
+        "title": "HealthHistoryResponse",
+        "description": "A run of health snapshots, oldest first, for the Station view's sparkline."
+      },
+      "HeartbeatResource": {
+        "properties": {
+          "recorded_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Recorded At",
+            "description": "When this snapshot was taken (UTC)."
+          },
+          "capture_running": {
+            "type": "boolean",
+            "title": "Capture Running"
+          },
+          "queue_depths": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Queue Depths",
+            "description": "Clips per pipeline stage at this moment."
+          },
+          "disk_free_gb": {
+            "type": "number",
+            "title": "Disk Free Gb"
+          },
+          "llm_remaining": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Llm Remaining",
+            "description": "Classifier calls left today, or null when no chain is configured."
+          },
+          "opensky_remaining": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opensky Remaining",
+            "description": "OpenSky credits left today, or null when enrichment is off."
+          }
+        },
+        "type": "object",
+        "required": [
+          "recorded_at",
+          "capture_running",
+          "queue_depths",
+          "disk_free_gb",
+          "llm_remaining",
+          "opensky_remaining"
+        ],
+        "title": "HeartbeatResource",
+        "description": "One health snapshot, taken during a worker maintenance pass."
       },
       "HourlyHeatCell": {
         "properties": {

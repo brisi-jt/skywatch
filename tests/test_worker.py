@@ -17,6 +17,7 @@ from skywatch.db.models import (
     AircraftMatch,
     Classification,
     Frequency,
+    Heartbeat,
     Recording,
     Setting,
     Transcript,
@@ -58,9 +59,10 @@ class FakeASR:
 
 
 class FakeEnricher:
-    def __init__(self, *, error=False):
+    def __init__(self, *, error=False, daily_credit_cap=3000):
         self._error = error
         self.calls = 0
+        self.daily_credit_cap = daily_credit_cap
 
     def enrich(self, session, recording, freq_category):
         self.calls += 1
@@ -331,3 +333,41 @@ class TestDiskGuardAndStatus:
         assert depths["captured"] == 1
         assert depths["transcribing"] == 2
         assert depths["classified"] == 0
+
+
+class TestHeartbeat:
+    def test_maintenance_pass_writes_one_heartbeat(self, engine, tmp_path):
+        source = FakeSource()
+        _seed_recording(engine, stage=RecordingStage.CAPTURED, data_root=tmp_path)
+        worker = _worker(engine, tmp_path, capture_source=source)
+        worker.tick()
+        with Session(engine) as session:
+            rows = session.exec(select(Heartbeat)).all()
+        assert len(rows) == 1
+        row = rows[0]
+        assert row.capture_running is True
+        # the seeded clip has moved on by the time maintenance runs, but it
+        # is still accounted for somewhere in the queue snapshot
+        assert sum(row.queue_depths.values()) == 1
+        assert row.disk_free_gb > 0
+        # no classifier chain / enricher configured by the default _worker() helper
+        assert row.llm_remaining is None
+        assert row.opensky_remaining is None
+
+    def test_heartbeat_reports_llm_and_opensky_remaining(self, engine, tmp_path):
+        chain = [FakeClassifier(_routine_verdict())]
+        worker = _worker(
+            engine, tmp_path, classifier_chain=chain, enricher=FakeEnricher(), daily_call_cap=900
+        )
+        worker.tick()
+        with Session(engine) as session:
+            row = session.exec(select(Heartbeat)).one()
+        assert row.llm_remaining == 900
+        assert row.opensky_remaining == 3000
+
+    def test_maintenance_interval_gates_a_second_heartbeat(self, engine, tmp_path):
+        worker = _worker(engine, tmp_path, maintenance_interval_s=900.0)
+        worker.tick()
+        worker.tick()  # same tick loop: the interval gate blocks a second write
+        with Session(engine) as session:
+            assert len(session.exec(select(Heartbeat)).all()) == 1

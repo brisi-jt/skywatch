@@ -917,3 +917,29 @@ class EvalFeedbackResponse(HALModel):
     disagreements: list[EvalDisagreement] = Field(
         description="Every clip where the classifier and listeners diverged, newest first."
     )
+
+
+# -- health history -------------------------------------------------------------------
+
+
+class HeartbeatResource(BaseModel):
+    """One health snapshot, taken during a worker maintenance pass."""
+
+    recorded_at: datetime = Field(description="When this snapshot was taken (UTC).")
+    capture_running: bool
+    queue_depths: dict[str, int] = Field(description="Clips per pipeline stage at this moment.")
+    disk_free_gb: float
+    llm_remaining: int | None = Field(
+        description="Classifier calls left today, or null when no chain is configured."
+    )
+    opensky_remaining: int | None = Field(
+        description="OpenSky credits left today, or null when enrichment is off."
+    )
+
+
+class HealthHistoryResponse(HALModel):
+    """A run of health snapshots, oldest first, for the Station view's sparkline."""
+
+    since: datetime
+    until: datetime
+    items: list[HeartbeatResource]

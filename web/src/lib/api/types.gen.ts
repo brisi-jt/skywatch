@@ -24,6 +24,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/health/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Station health over time
+         * @description A run of health snapshots taken during the worker's maintenance pass: whether capture was running, pipeline queue depths, free disk, and the classifier/flight-data budgets remaining. Defaults to the last seven days, oldest first, when `since` is omitted.
+         */
+        get: operations["get_health_history_health_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/frequencies": {
         parameters: {
             query?: never;
@@ -1348,6 +1368,64 @@ export interface components {
             detail?: components["schemas"]["ValidationError"][];
         };
         /**
+         * HealthHistoryResponse
+         * @description A run of health snapshots, oldest first, for the Station view's sparkline.
+         */
+        HealthHistoryResponse: {
+            /**
+             * Links
+             * @description HAL links: self plus related resources and the actions currently available on this resource.
+             */
+            _links?: {
+                [key: string]: components["schemas"]["Link"];
+            };
+            /**
+             * Since
+             * Format: date-time
+             */
+            since: string;
+            /**
+             * Until
+             * Format: date-time
+             */
+            until: string;
+            /** Items */
+            items: components["schemas"]["HeartbeatResource"][];
+        };
+        /**
+         * HeartbeatResource
+         * @description One health snapshot, taken during a worker maintenance pass.
+         */
+        HeartbeatResource: {
+            /**
+             * Recorded At
+             * Format: date-time
+             * @description When this snapshot was taken (UTC).
+             */
+            recorded_at: string;
+            /** Capture Running */
+            capture_running: boolean;
+            /**
+             * Queue Depths
+             * @description Clips per pipeline stage at this moment.
+             */
+            queue_depths: {
+                [key: string]: number;
+            };
+            /** Disk Free Gb */
+            disk_free_gb: number;
+            /**
+             * Llm Remaining
+             * @description Classifier calls left today, or null when no chain is configured.
+             */
+            llm_remaining: number | null;
+            /**
+             * Opensky Remaining
+             * @description OpenSky credits left today, or null when enrichment is off.
+             */
+            opensky_remaining: number | null;
+        };
+        /**
          * HourlyHeatCell
          * @description A transmission count for one station-local hour on one frequency.
          *
@@ -2267,6 +2345,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StatusResponse"];
+                };
+            };
+        };
+    };
+    get_health_history_health_history_get: {
+        parameters: {
+            query?: {
+                /** @description Earliest snapshot to include (UTC). */
+                since?: string | null;
+                /** @description Latest snapshot to include (UTC). */
+                until?: string | null;
+                /** @description Snapshots to return. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HealthHistoryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

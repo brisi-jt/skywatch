@@ -24,6 +24,7 @@ EXPECTED_TABLES = {
     "settings",
     "incidents",
     "incident_clips",
+    "heartbeats",
 }
 
 # The revision that shipped before the U3 additive migrations, used to prove
@@ -33,6 +34,10 @@ PRE_U3_REVISION = "4f41a40b5f5d"
 # The revision that shipped before the U6a additive migrations (stars,
 # incidents), used to prove they apply cleanly on top of a populated database.
 PRE_U6A_REVISION = "d3f8a1c2b4e6"
+
+# The revision that shipped before the U6b heartbeats migration, used to
+# prove it applies cleanly on top of a database that already holds rows.
+PRE_U6B_REVISION = "7be5d2bb0b1e"
 
 
 def _alembic_config(db_path: Path) -> Config:
@@ -219,3 +224,38 @@ def test_u6a_migrations_apply_on_populated_database(tmp_path):
         )
     with engine.connect() as conn:
         assert conn.exec_driver_sql("SELECT COUNT(*) FROM incident_clips").scalar() == 1
+
+
+def test_u6b_heartbeats_migration_applies_on_populated_database(tmp_path):
+    """The heartbeats table applies on top of a database with existing rows."""
+    db_path = tmp_path / "populated.db"
+    cfg = _alembic_config(db_path)
+    command.upgrade(cfg, PRE_U6B_REVISION)
+
+    engine = create_engine(f"sqlite:///{db_path}")
+    with engine.begin() as conn:
+        conn.exec_driver_sql(
+            "INSERT INTO frequencies "
+            "(created_at, updated_at, label, mhz, mode, facility, category, "
+            " description, is_active, tuner_group, verified) "
+            "VALUES ('2026-01-01', '2026-01-01', 'Tower', 123.8, 'am', 'X', "
+            "'tower', '', 1, 1, 0)"
+        )
+
+    command.upgrade(cfg, "head")
+
+    inspector = inspect(engine)
+    assert set(inspector.get_table_names()) >= EXPECTED_TABLES
+    # the pre-existing frequency survives the migration untouched
+    with engine.connect() as conn:
+        assert conn.exec_driver_sql("SELECT COUNT(*) FROM frequencies").scalar() == 1
+
+    with engine.begin() as conn:
+        conn.exec_driver_sql(
+            "INSERT INTO heartbeats "
+            "(created_at, updated_at, capture_running, queue_depths, disk_free_gb, "
+            " llm_remaining, opensky_remaining) "
+            "VALUES ('2026-01-02', '2026-01-02', 1, '{}', 12.5, 900, 3000)"
+        )
+    with engine.connect() as conn:
+        assert conn.exec_driver_sql("SELECT COUNT(*) FROM heartbeats").scalar() == 1

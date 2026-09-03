@@ -189,6 +189,18 @@ export function useNotableDays() {
   });
 }
 
+/** The last week of health snapshots, for the Station view's sparkline. */
+export function useHealthHistory() {
+  return useQuery({
+    queryKey: ["health-history"],
+    queryFn: async () => {
+      const result = await api.GET("/health/history");
+      return unwrap(result);
+    },
+    refetchInterval: 60_000,
+  });
+}
+
 /** How well the classifier agrees with listener feedback, for the story page. */
 export function useFeedbackEval() {
   return useQuery({
