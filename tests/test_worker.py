@@ -3,6 +3,8 @@
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import httpx
+import respx
 from sqlmodel import Session, select
 
 from skywatch.capture.source import SourceStatus
@@ -22,15 +24,17 @@ from skywatch.db.models import (
     Setting,
     Transcript,
 )
+from skywatch.pipeline.ntfy import NtfyConfig
 from skywatch.pipeline.retention import (
     CAPTURE_PAUSED_KEY,
     DEEP_TUNE_ACTIVE_KEY,
     DEEP_TUNE_HEARTBEAT_TTL_S,
 )
+from skywatch.pipeline.weekly_email import EmailDigestConfig
 from skywatch.pipeline.worker import PipelineWorker, queue_depths
 from skywatch.providers.asr.base import ASRError, TranscriptionResult
 from skywatch.providers.flightdata.opensky import OpenSkyError
-from test_classify import FakeClassifier, _routine_verdict
+from test_classify import FakeClassifier, _interesting_verdict, _routine_verdict
 
 
 class FakeASR:
@@ -371,3 +375,75 @@ class TestHeartbeat:
         worker.tick()  # same tick loop: the interval gate blocks a second write
         with Session(engine) as session:
             assert len(session.exec(select(Heartbeat)).all()) == 1
+
+
+class TestNtfyPush:
+    @respx.mock
+    def test_interesting_verdict_triggers_a_push(self, engine, tmp_path):
+        respx.post("https://ntfy.sh/skywatch").mock(return_value=httpx.Response(200))
+        rec_id = _seed_recording(engine, stage=RecordingStage.CAPTURED, data_root=tmp_path)
+        clf = FakeClassifier(_interesting_verdict())
+        ntfy_cfg = NtfyConfig(enabled=True, topic="skywatch")
+        worker = _worker(engine, tmp_path, classifier_chain=[clf], ntfy_config=ntfy_cfg)
+        for _ in range(6):
+            worker.tick()
+
+        assert respx.calls.call_count == 1
+        assert _stage(engine, rec_id) is RecordingStage.CLASSIFIED
+
+    @respx.mock
+    def test_routine_verdict_does_not_push(self, engine, tmp_path):
+        route = respx.post("https://ntfy.sh/skywatch").mock(return_value=httpx.Response(200))
+        _seed_recording(engine, stage=RecordingStage.CAPTURED, data_root=tmp_path)
+        clf = FakeClassifier(_routine_verdict())
+        ntfy_cfg = NtfyConfig(enabled=True, topic="skywatch")
+        worker = _worker(engine, tmp_path, classifier_chain=[clf], ntfy_config=ntfy_cfg)
+        for _ in range(6):
+            worker.tick()
+
+        assert route.call_count == 0
+
+    @respx.mock
+    def test_disabled_ntfy_never_pushes(self, engine, tmp_path):
+        route = respx.post("https://ntfy.sh/skywatch").mock(return_value=httpx.Response(200))
+        _seed_recording(engine, stage=RecordingStage.CAPTURED, data_root=tmp_path)
+        clf = FakeClassifier(_interesting_verdict())
+        # default NtfyConfig() is disabled — this is the setup _worker() gives by default
+        worker = _worker(engine, tmp_path, classifier_chain=[clf])
+        for _ in range(6):
+            worker.tick()
+
+        assert route.call_count == 0
+
+    @respx.mock
+    def test_push_failure_does_not_affect_the_classification(self, engine, tmp_path):
+        respx.post("https://ntfy.sh/skywatch").mock(return_value=httpx.Response(500))
+        rec_id = _seed_recording(engine, stage=RecordingStage.CAPTURED, data_root=tmp_path)
+        clf = FakeClassifier(_interesting_verdict())
+        ntfy_cfg = NtfyConfig(enabled=True, topic="skywatch")
+        worker = _worker(engine, tmp_path, classifier_chain=[clf], ntfy_config=ntfy_cfg)
+        for _ in range(6):
+            worker.tick()
+
+        # the clip still reached CLASSIFIED despite the ntfy 500 — the push
+        # is best-effort and runs only after classification has committed
+        assert _stage(engine, rec_id) is RecordingStage.CLASSIFIED
+        with Session(engine) as session:
+            row = session.exec(select(Classification)).one()
+            assert row.is_interesting is True
+
+    @respx.mock
+    def test_click_url_uses_the_configured_public_base_url(self, engine, tmp_path):
+        route = respx.post("https://ntfy.sh/skywatch").mock(return_value=httpx.Response(200))
+        _seed_recording(engine, stage=RecordingStage.CAPTURED, data_root=tmp_path)
+        clf = FakeClassifier(_interesting_verdict())
+        ntfy_cfg = NtfyConfig(enabled=True, topic="skywatch")
+        email_cfg = EmailDigestConfig(public_base_url="https://sky.example.ts.net")
+        worker = _worker(
+            engine, tmp_path, classifier_chain=[clf], ntfy_config=ntfy_cfg, email_config=email_cfg
+        )
+        for _ in range(6):
+            worker.tick()
+
+        click = route.calls[0].request.headers["Click"]
+        assert click.startswith("https://sky.example.ts.net/clips/?clip=")

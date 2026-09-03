@@ -29,7 +29,7 @@ from sqlmodel import Session, select
 from skywatch.db.engine import create_db_engine, default_db_path, session_scope
 from skywatch.db.enums import RecordingStage
 from skywatch.db.models import Classification, Frequency, Heartbeat, Recording, Setting, Transcript
-from skywatch.pipeline import budget, narrative, weekly_email
+from skywatch.pipeline import budget, narrative, ntfy, weekly_email
 from skywatch.pipeline.prefilters import run_prefilters
 from skywatch.pipeline.retention import (
     CAPTURE_PAUSED_KEY,
@@ -104,6 +104,7 @@ class PipelineWorker:
         backfill_batch: int = 20,
         monotonic=time.monotonic,
         email_config: weekly_email.EmailDigestConfig | None = None,
+        ntfy_config: ntfy.NtfyConfig | None = None,
         wall_clock=lambda: datetime.now(UTC),
     ) -> None:
         self._engine = engine
@@ -120,6 +121,7 @@ class PipelineWorker:
         self._callsign_boost = callsign_boost
         self._station_tz = station_tz
         self._email_config = email_config or weekly_email.EmailDigestConfig()
+        self._ntfy_config = ntfy_config or ntfy.NtfyConfig()
         self._wall_clock = wall_clock
         self._max_attempts = max(1, max_attempts)
         self._backoff_base_s = backoff_base_s
@@ -407,12 +409,13 @@ class PipelineWorker:
                 return
             recording.stage = RecordingStage.CLASSIFYING
             session.add(recording)
+        push_info: tuple[int, datetime, str, str, str] | None = None
         try:
             with session_scope(self._engine) as session:
                 recording = session.get(Recording, rec_id)
                 frequency = session.get(Frequency, recording.freq_id)
                 transcript = self._latest_transcript(session, rec_id)
-                run_classify(
+                verdict = run_classify(
                     session,
                     recording,
                     transcript,
@@ -425,6 +428,14 @@ class PipelineWorker:
                 recording.stage = RecordingStage.CLASSIFIED
                 self._clear_own_error(recording, "classification")
                 session.add(recording)
+                if verdict is not None and verdict.is_interesting:
+                    push_info = (
+                        recording.id,
+                        recording.started_at_utc,
+                        frequency.label,
+                        verdict.category.value,
+                        verdict.reason,
+                    )
             self._clear_failures(rec_id, _CLASSIFY)
         except Exception as exc:
             attempts = self._register_failure(rec_id, _CLASSIFY)
@@ -441,6 +452,42 @@ class PipelineWorker:
                 attempts,
                 self._max_attempts,
                 exc,
+            )
+            return
+        if push_info is not None:
+            try:
+                self._maybe_push_ntfy(*push_info)
+            except Exception:
+                logger.exception("ntfy push failed for recording %s; skipping", rec_id)
+
+    def _maybe_push_ntfy(
+        self,
+        recording_id: int,
+        started_at_utc: datetime,
+        freq_label: str,
+        category: str,
+        reason: str,
+    ) -> None:
+        """Real-time push the moment a clip is classified interesting.
+
+        Best-effort: a push failure never affects the recording's stage — the
+        classification already committed by the time this runs.
+        """
+        if not self._ntfy_config.enabled:
+            return
+        local_time = started_at_utc.astimezone(self._station_tz).strftime("%H:%M")
+        path = f"/clips/?clip={recording_id}"
+        base_url = self._email_config.public_base_url
+        click_url = f"{base_url.rstrip('/')}{path}" if base_url else path
+        with session_scope(self._engine) as session:
+            ntfy.push_interesting_clip(
+                self._ntfy_config,
+                session,
+                title=f"Skywatch — {category.replace('_', ' ')}",
+                message=f"{local_time} on {freq_label}: {reason}",
+                category=category,
+                click_url=click_url,
+                now=self._wall_clock(),
             )
 
     # -- deferred backfill -------------------------------------------------------
@@ -818,6 +865,11 @@ def build_worker(settings: Settings, engine=None) -> PipelineWorker:
         smtp_from=settings.smtp_from,
         public_base_url=settings.server.public_base_url,
     )
+    ntfy_config = ntfy.NtfyConfig(
+        enabled=settings.digest.ntfy.enabled,
+        topic=settings.digest.ntfy.topic,
+        server=settings.digest.ntfy.server,
+    )
 
     return PipelineWorker(
         engine,
@@ -834,6 +886,7 @@ def build_worker(settings: Settings, engine=None) -> PipelineWorker:
         callsign_boost=settings.asr.callsign_boost,
         station_tz=ZoneInfo(settings.server.timezone),
         email_config=email_config,
+        ntfy_config=ntfy_config,
     )
 
 
