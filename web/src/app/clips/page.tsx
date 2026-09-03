@@ -1,12 +1,21 @@
 "use client";
 
-import { Check, HelpCircle, Link2, Play, Search, X } from "lucide-react";
-import { useSearchParams } from "next/navigation";
+import { Check, FolderPlus, HelpCircle, Layers, Link2, ListChecks, Play, Search, X } from "lucide-react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 
 import { ClipCard, ClipCardSkeleton } from "@/components/clip-card";
 import { NewClipsPill } from "@/components/new-clips-pill";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -18,7 +27,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { useFrequencies, useRecordingDetail, useRecordings } from "@/lib/api/hooks";
+import {
+  useAddClipToIncident,
+  useCreateIncident,
+  useFrequencies,
+  useRecordingDetail,
+  useRecordings,
+} from "@/lib/api/hooks";
 import { playableQueue } from "@/lib/clip";
 import {
   buildClipFilters,
@@ -57,8 +72,46 @@ export default function ClipsPage() {
 }
 
 function ClipsView() {
+  const router = useRouter();
   const params = useSearchParams();
   const linkedClip = params.get("clip");
+
+  // Select-mode: pick clips to bundle into an incident. Order is selection
+  // order, which becomes the incident's playback order.
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [groupDialogOpen, setGroupDialogOpen] = useState(false);
+  const [incidentTitle, setIncidentTitle] = useState("");
+  const createIncident = useCreateIncident();
+  const addClipToIncident = useAddClipToIncident();
+  const [grouping, setGrouping] = useState(false);
+
+  const toggleSelectMode = () => {
+    setSelectMode((v) => !v);
+    setSelectedIds([]);
+  };
+  const toggleSelected = (id: number) => {
+    setSelectedIds((ids) => (ids.includes(id) ? ids.filter((i) => i !== id) : [...ids, id]));
+  };
+  const submitGroup = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const title = incidentTitle.trim();
+    if (!title || selectedIds.length === 0) return;
+    setGrouping(true);
+    try {
+      const incident = await createIncident.mutateAsync(title);
+      for (const recordingId of selectedIds) {
+        await addClipToIncident.mutateAsync({ incidentId: incident.id, recordingId });
+      }
+      setGroupDialogOpen(false);
+      setSelectMode(false);
+      setSelectedIds([]);
+      setIncidentTitle("");
+      router.push(`/incidents/?incident=${incident.id}`);
+    } finally {
+      setGrouping(false);
+    }
+  };
 
   const [filters, setFilters] = useState<FilterState>(() =>
     filtersFromSearchParams(new URLSearchParams(params.toString())),
@@ -344,6 +397,12 @@ function ClipsView() {
             `${total} ${total === 1 ? "clip" : "clips"}${anyActive ? " match these filters" : ""}`}
         </span>
         <div className="flex items-center gap-2">
+          <Button variant="ghost" className="min-h-10" asChild>
+            <Link href="/incidents/">
+              <Layers className="size-4" />
+              Incidents
+            </Link>
+          </Button>
           <Button variant="ghost" className="min-h-10" onClick={copyLink}>
             {linkCopied ? (
               <>
@@ -367,8 +426,60 @@ function ClipsView() {
               Play all worth hearing
             </Button>
           )}
+          <Button
+            variant={selectMode ? "secondary" : "outline"}
+            className="min-h-10"
+            onClick={toggleSelectMode}
+          >
+            <ListChecks className="size-4" />
+            {selectMode ? "Cancel selecting" : "Select clips"}
+          </Button>
         </div>
       </div>
+
+      {selectMode && (
+        <div className="flex items-center justify-between gap-2 rounded-xl border bg-card px-4 py-3">
+          <span className="text-base">
+            {selectedIds.length === 0
+              ? "Pick the clips that belong together."
+              : `${selectedIds.length} ${selectedIds.length === 1 ? "clip" : "clips"} selected`}
+          </span>
+          <Button
+            className="min-h-10"
+            disabled={selectedIds.length === 0}
+            onClick={() => setGroupDialogOpen(true)}
+          >
+            <FolderPlus className="size-4" />
+            Group into incident
+          </Button>
+        </div>
+      )}
+
+      <Dialog open={groupDialogOpen} onOpenChange={setGroupDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display text-2xl">Name this incident</DialogTitle>
+            <DialogDescription className="text-base">
+              {selectedIds.length} {selectedIds.length === 1 ? "clip" : "clips"} will play back in
+              the order you selected them.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={submitGroup} className="flex flex-col gap-4">
+            <Input
+              value={incidentTitle}
+              onChange={(event) => setIncidentTitle(event.target.value)}
+              placeholder="Go-around sequence, 09:30"
+              className="h-11 text-base"
+              autoFocus
+            />
+            <DialogFooter>
+              <Button type="submit" size="lg" disabled={grouping || !incidentTitle.trim()}>
+                {grouping ? "Creating…" : "Create incident"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <NewClipsPill />
 
@@ -412,6 +523,9 @@ function ClipsView() {
               highlight={recentIds.has(clip.id)}
               expanded={expandedId === clip.id}
               onToggle={(id) => setExpandedId((cur) => (cur === id ? null : id))}
+              selectable={selectMode}
+              selected={selectedIds.includes(clip.id)}
+              onSelectToggle={toggleSelected}
             />
           </div>
         ))}

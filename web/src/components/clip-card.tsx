@@ -1,7 +1,16 @@
 "use client";
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ChevronDown, Play, RefreshCcw, Star, ThumbsDown, ThumbsUp } from "lucide-react";
+import {
+  CheckSquare,
+  ChevronDown,
+  Play,
+  RefreshCcw,
+  Square,
+  Star,
+  ThumbsDown,
+  ThumbsUp,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import {
@@ -61,6 +70,9 @@ export function ClipCard({
   onToggle,
   queue,
   highlight = false,
+  selectable = false,
+  selected = false,
+  onSelectToggle,
 }: {
   clip: RecordingSummary;
   variant?: ClipCardVariant;
@@ -70,6 +82,11 @@ export function ClipCard({
   queue?: PlayerClip[];
   /** Warm-decay tint applied when this clip has just folded in from the pill. */
   highlight?: boolean;
+  /** Select-mode (grouping clips into an incident): shows a checkbox and
+   * makes the whole card a selection toggle instead of a player/expander. */
+  selectable?: boolean;
+  selected?: boolean;
+  onSelectToggle?: (id: number) => void;
 }) {
   const player = usePlayer();
   const reducedMotion = useReducedMotion();
@@ -107,12 +124,16 @@ export function ClipCard({
           isCurrent && "ring-2 ring-interesting/60",
         )}
       >
-        <PlayButton
-          available={clip.audio_available}
-          playing={isCurrent && player.playing}
-          onClick={startPlay}
-          size="sm"
-        />
+        {selectable ? (
+          <SelectCheckbox selected={selected} onToggle={() => onSelectToggle?.(clip.id)} />
+        ) : (
+          <PlayButton
+            available={clip.audio_available}
+            playing={isCurrent && player.playing}
+            onClick={startPlay}
+            size="sm"
+          />
+        )}
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">{title}</p>
           {clip.transcript_snippet && (
@@ -141,15 +162,20 @@ export function ClipCard({
         interesting && "border-interesting/40",
         expanded && "border-ring/50",
         isCurrent && "ring-2 ring-interesting/60",
+        selected && "border-ring bg-accent/40",
         highlight && "arrival-tint",
       )}
     >
       <div className={cn("flex items-start gap-4 p-4", variant === "featured" && "p-5")}>
-        <PlayButton
-          available={clip.audio_available}
-          playing={isCurrent && player.playing}
-          onClick={startPlay}
-        />
+        {selectable ? (
+          <SelectCheckbox selected={selected} onToggle={() => onSelectToggle?.(clip.id)} />
+        ) : (
+          <PlayButton
+            available={clip.audio_available}
+            playing={isCurrent && player.playing}
+            onClick={startPlay}
+          />
+        )}
 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -299,6 +325,24 @@ function StarToggle({
       )}
     >
       <Star className={cn(size === "lg" ? "size-5" : "size-4", starred && "fill-current")} />
+    </button>
+  );
+}
+
+/** The select-mode checkbox that replaces the play button while grouping clips. */
+function SelectCheckbox({ selected, onToggle }: { selected: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-pressed={selected}
+      aria-label={selected ? "Remove from selection" : "Add to selection"}
+      className={cn(
+        "flex size-10 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent/60",
+        selected && "text-interesting",
+      )}
+    >
+      {selected ? <CheckSquare className="size-5" /> : <Square className="size-5" />}
     </button>
   );
 }
