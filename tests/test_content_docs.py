@@ -60,7 +60,7 @@ class TestServedDocuments:
 class TestRunbookStructure:
     def test_has_sectioned_headings_for_toc(self):
         sections = headings(RUNBOOK.read_text())
-        assert len(sections) >= 8, "runbook should be sectioned with ## headings"
+        assert len(sections) >= 12, "runbook should be sectioned with ## headings"
 
     def test_covers_the_operating_essentials(self):
         text = RUNBOOK.read_text().lower()
@@ -76,6 +76,17 @@ class TestRunbookStructure:
             "tuning bench",
             "deep tune",
             "station defaults",
+        ):
+            assert topic in text, f"runbook is missing coverage of: {topic}"
+
+    def test_covers_the_v1_1_features(self):
+        text = RUNBOOK.read_text().lower()
+        for topic in (
+            "sky",
+            "ask the station",
+            "large print",
+            "weekly email",
+            "smtp",
         ):
             assert topic in text, f"runbook is missing coverage of: {topic}"
 

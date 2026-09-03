@@ -169,6 +169,55 @@ an enthusiast listing and hasn't yet been double-checked against an
 official source. Hearing the right traffic on it is the proof; confirming
 and clearing the badge is a **(remote admin)** job.
 
+## Sky: what's overhead right now
+
+The dashboard's **Sky** tab shows a map centred on the station with a dot
+for every aircraft currently in range, each labelled with its callsign,
+height, and type. It's a nice thing to glance at while a clip is playing —
+you can often see the very aircraft that just spoke.
+
+One thing worth knowing: **the positions on this map don't come from the
+dongle.** The dongle only ever listens to voice; it can't see where
+aircraft are. Sky instead asks free online flight-tracking services for
+their live picture of the sky over the station, so it needs the laptop to
+have an internet connection, unlike the rest of the station, which happily
+runs without one. If Sky says it can't reach those services, nothing else
+is affected — recording and transcribing carry on exactly as before, and
+Sky sorts itself out once the connection returns. See the Glossary's
+"ADS-B" entry for how those tracking services work.
+
+An aircraft the station has actually heard recently is highlighted
+differently from the rest, and clicking it opens the clips it was heard on.
+The reverse works too: a clip in the **Clips** view that's still overhead
+carries a small "overhead now" tag that jumps straight to it on the map.
+
+## Ask the station a question
+
+Following the **station's story** link near the bottom of **Today** opens a
+page with a question box. Type something in plain English: "was there a
+mayday this week?", "what has Speedbird been up to?" The station answers
+using its own recorded clips, with links to the specific clips the answer
+came from. If nothing in the archive is relevant, it says so plainly rather
+than making something up.
+
+The answer is written by the same online model the station already uses to
+help pick out interesting clips day to day, and the same note applies:
+whatever text is sent to answer a question — transcript snippets, never
+audio — is subject to that provider's terms, which for the free tier this
+station uses by default allow the provider to learn from what's submitted.
+There's a short pause between questions, and on a very busy day the
+station may occasionally say it can't answer right now because that day's
+allowance of questions and classifications has run out — it picks back up
+the next day.
+
+## Large print
+
+If the dashboard's default text is a little small, open **Settings** (the
+gear icon, top right of any page) and choose **A+ Large**. Every screen
+switches to a bigger type size immediately, in both the light and dark
+themes; **A Normal** switches it back. The choice is remembered, so it only
+needs setting once.
+
 ## Where the recordings live
 
 Every recording is an ordinary MP3 file on the laptop, filed by date:
@@ -201,6 +250,31 @@ station lives somewhere other than `~/skywatch`, use that path instead.)
 
 Run it whenever you think of it. It only copies what's new since last time,
 so it's quick after the first run.
+
+## The weekly email (remote admin)
+
+The station can send a Sunday-morning email summing up the week: a short
+written recap, links to the week's best clips, and a few numbers. It's off
+by default. Turning it on takes two files:
+
+- In `config/config.yaml`, under `digest: email:`, set `enabled: true` and
+  list who should receive it under `to:`. `day` and `hour` decide when it
+  goes out (station-local time).
+- In `.env`, add the mail account it should send from: `SMTP_HOST`,
+  `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, and `SMTP_FROM`. Most email
+  providers publish these settings under "app passwords" or "SMTP access"
+  in their account settings — a dedicated app password is safer here than
+  a real account password.
+- If the dashboard is reachable from outside the house (over Tailscale, for
+  example), also set `server.public_base_url` in `config.yaml` to that
+  address, so the links in the email work from wherever it's opened rather
+  than only from the station's own laptop.
+
+A missed or failed send is logged and never stops the station recording —
+worth a look in the logs if a Sunday goes by without one arriving. There's
+also an optional instant push (via [ntfy](https://ntfy.sh)) for interesting
+clips as they happen, configured the same way under `digest: ntfy:` — handy
+on a phone, off by default, and entirely separate from the weekly email.
 
 ## When something looks wrong
 
