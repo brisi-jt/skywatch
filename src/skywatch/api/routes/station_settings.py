@@ -35,8 +35,9 @@ def get_settings(session: Annotated[Session, Depends(get_session)]) -> SettingsR
         "Partial update: send only the keys to change. Editable keys: "
         "`station_name` (a string); the boolean flags `tuning.walkthrough_done`, "
         "`first_clip_celebrated`, and `earcon_enabled` (each 'true' or 'false'); "
-        "and `classify.watch_phrases` (a list of non-empty strings that always "
-        "flag a clip when heard). Anything else is rejected with a 400 problem "
+        "`classify.watch_phrases` (a list of non-empty strings that always "
+        "flag a clip when heard); and `display.text_size` ('normal' or "
+        "'large'). Anything else is rejected with a 400 problem "
         "detail listing the allowed keys. A successful rename is announced on the "
         "event stream as `status.changed`, so other open dashboards update live."
     ),

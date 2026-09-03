@@ -118,6 +118,27 @@ export function SettingsDialog({
               ))}
             </div>
           </div>
+          <div className="flex flex-col gap-2">
+            <span className="text-base font-medium">Text size</span>
+            <div className="flex gap-2">
+              {(["normal", "large"] as const).map((size) => (
+                <button
+                  key={size}
+                  type="button"
+                  aria-pressed={(settings?.text_size ?? "normal") === size}
+                  onClick={() => save.mutate({ "display.text_size": size })}
+                  className={cn(
+                    "min-h-10 flex-1 rounded-md border px-3 text-base transition-colors",
+                    (settings?.text_size ?? "normal") === size
+                      ? "border-ring bg-accent text-accent-foreground"
+                      : "text-muted-foreground hover:bg-accent/60",
+                  )}
+                >
+                  {size === "large" ? "A+ Large" : "A Normal"}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="flex items-start justify-between gap-4">
             <div className="flex flex-col">
               <span className="text-base font-medium">Chime on interesting clips</span>

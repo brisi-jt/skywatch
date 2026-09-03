@@ -124,6 +124,25 @@ class TestSettings:
         assert response.status_code == 422
         assert response.json()["code"] == "invalid_setting_value"
 
+    def test_text_size_defaults_normal(self, client):
+        assert client.get("/settings").json()["text_size"] == "normal"
+
+    def test_text_size_round_trips(self, client):
+        response = client.patch("/settings", json={"display.text_size": "large"})
+
+        assert response.status_code == 200
+        assert response.json()["text_size"] == "large"
+        assert client.get("/settings").json()["text_size"] == "large"
+
+        client.patch("/settings", json={"display.text_size": "normal"})
+        assert client.get("/settings").json()["text_size"] == "normal"
+
+    def test_text_size_rejects_unknown_value(self, client):
+        response = client.patch("/settings", json={"display.text_size": "huge"})
+        assert response.status_code == 422
+        assert response.json()["code"] == "invalid_setting_value"
+        assert client.get("/settings").json()["text_size"] == "normal"
+
 
 class TestAppPlumbing:
     def test_unknown_path_is_a_problem_404(self, client):

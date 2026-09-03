@@ -10,6 +10,7 @@ the client's job.
 from datetime import date as date_type
 from datetime import datetime
 from enum import StrEnum
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -864,6 +865,9 @@ class SettingsResponse(HALModel):
             "Editable by the owner; seeded with the station's built-in distress "
             "phrases."
         ),
+    )
+    text_size: Literal["normal", "large"] = Field(
+        description="The dashboard's base text size; 'large' scales every rem-based size up.",
     )
 
 

@@ -24,6 +24,10 @@ from skywatch.pipeline.watch_phrases import (
 WALKTHROUGH_KEY = "tuning.walkthrough_done"
 FIRST_CLIP_CELEBRATED_KEY = "first_clip_celebrated"
 EARCON_ENABLED_KEY = "earcon_enabled"
+TEXT_SIZE_KEY = "display.text_size"
+
+TEXT_SIZES = ("normal", "large")
+DEFAULT_TEXT_SIZE = "normal"
 
 EDITABLE_KEYS = (
     "station_name",
@@ -31,6 +35,7 @@ EDITABLE_KEYS = (
     FIRST_CLIP_CELEBRATED_KEY,
     EARCON_ENABLED_KEY,
     WATCH_PHRASES_KEY,
+    TEXT_SIZE_KEY,
 )
 
 # Keys that hold a boolean, stored as the strings "true" / "false".
@@ -44,12 +49,14 @@ def _flag(session: Session, key: str) -> bool:
 
 def settings_view(session: Session) -> SettingsResponse:
     row = session.get(Setting, "station_name")
+    text_size_row = session.get(Setting, TEXT_SIZE_KEY)
     return SettingsResponse(
         station_name=row.value if row is not None else None,
         tuning_walkthrough_done=_flag(session, WALKTHROUGH_KEY),
         first_clip_celebrated=_flag(session, FIRST_CLIP_CELEBRATED_KEY),
         earcon_enabled=_flag(session, EARCON_ENABLED_KEY),
         watch_phrases=load_watch_phrases(session),
+        text_size=text_size_row.value if text_size_row is not None else DEFAULT_TEXT_SIZE,
         links={"self": Link(href="/settings")},
     )
 
@@ -99,6 +106,8 @@ def apply_patch(session: Session, payload: dict[str, object]) -> SettingsRespons
             raise _invalid(key, f"{key} must not be blank")
         if key in BOOLEAN_KEYS and cleaned not in ("true", "false"):
             raise _invalid(key, f"{key} must be 'true' or 'false'")
+        if key == TEXT_SIZE_KEY and cleaned not in TEXT_SIZES:
+            raise _invalid(key, f"{key} must be one of {', '.join(TEXT_SIZES)}")
         _store(session, key, cleaned)
     session.commit()
     return settings_view(session)

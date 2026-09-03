@@ -8,6 +8,7 @@ import { useSettings, useStatus } from "@/lib/api/hooks";
 import { playEarcon, setEarconEnabled } from "@/lib/earcon";
 import { setDisplayZone } from "@/lib/format";
 import { PlayerProvider } from "@/lib/player";
+import { applyTextSize } from "@/lib/text-size";
 import { useWs, WsProvider } from "@/lib/ws";
 
 /** Keeps the date/time formatters on the station's own timezone (from /status). */
@@ -25,6 +26,16 @@ function EarconSettingsSync() {
   useEffect(() => {
     setEarconEnabled(data?.earcon_enabled ?? false);
   }, [data?.earcon_enabled]);
+  return null;
+}
+
+/** Mirrors the text-size setting onto the document root, where the large-print
+ * CSS token switches on it. */
+function TextSizeSync() {
+  const { data } = useSettings();
+  useEffect(() => {
+    applyTextSize(data?.text_size);
+  }, [data?.text_size]);
   return null;
 }
 
@@ -60,6 +71,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <QueryClientProvider client={queryClient}>
         <ZoneSync />
         <EarconSettingsSync />
+        <TextSizeSync />
         <WsProvider>
           <LiveArrivalEarcon />
           <PlayerProvider onReachInteresting={() => playEarcon()}>{children}</PlayerProvider>

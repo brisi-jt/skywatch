@@ -205,6 +205,10 @@
     /* Readability baseline for the station's primary reader: 18px body. */
     font-size: 18px;
   }
+  html[data-text-size="large"] {
+    /* A/A+ toggle in Settings: every rem-based size scales up from here. */
+    font-size: 20px;
+  }
   body {
     @apply bg-background text-foreground font-sans antialiased;
     line-height: 1.6;
