@@ -8,6 +8,7 @@ from sqlmodel import Session
 
 from skywatch.api.services.capture import CaptureController
 from skywatch.api.services.deep_tune import DeepTuneManager
+from skywatch.api.services.sky import SkyService
 from skywatch.settings import Settings
 
 
@@ -39,3 +40,7 @@ def get_fts_available(request: Request) -> bool:
 def get_classifier_chain(request: Request) -> list:
     """The LLM provider chain the API uses for on-demand narrative summaries."""
     return request.app.state.classifier_chain
+
+
+def get_sky_service(request: Request) -> SkyService:
+    return request.app.state.sky_service

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "skywatch station",
-    "description": "The complete contract for a skywatch station: a receive-only SDR aviation\nmonitor that records VHF airband transmissions, transcribes them locally,\nflags the interesting ones, and attaches probable aircraft.\n\nReading the data:\n\n- `/status` \u2014 station health; `/frequencies` \u2014 the listening plan.\n- `/recordings` \u2014 the clip library; `/clips/interesting` \u2014 the good bits;\n  `/digest` \u2014 one day summarised for a \"today\" view.\n- `/runbook` and `/glossary` \u2014 station documents as Markdown.\n\nLive updates come from `WS /stream`. Every message is an envelope\n`{\"type\": <event>, \"payload\": <object>}` with five event types:\n`recording.new` (payload: a /recordings list item), `recording.updated`\n(same shape, sent when a clip's pipeline stage or verdicts change),\n`status.changed` (payload: the /status shape, sent when station settings\nchange), and \u2014 only while a deep tune session is running \u2014 `spectrum.frame`\n(payload: frequency axis metadata plus a dB curve and per-channel powers)\nand `deep_tune.state` (payload: started/warning/stopped with a reason).\nThe stream sends events only \u2014 anything a client sends is ignored.\n\nErrors are RFC 7807 problem details (`application/problem+json`) with a\nstable `code` field to switch on.\n\nThe API is unauthenticated by design: it is meant for a private LAN or\nTailscale network only, and must not be exposed to the public internet.\nTransmissions are received for personal monitoring; audio must not be\nrebroadcast.\n",
+    "description": "The complete contract for a skywatch station: a receive-only SDR aviation\nmonitor that records VHF airband transmissions, transcribes them locally,\nflags the interesting ones, and attaches probable aircraft.\n\nReading the data:\n\n- `/status` \u2014 station health; `/frequencies` \u2014 the listening plan.\n- `/recordings` \u2014 the clip library; `/clips/interesting` \u2014 the good bits;\n  `/digest` \u2014 one day summarised for a \"today\" view.\n- `/sky` \u2014 live aircraft positions overhead, fused with what the station\n  has actually heard.\n- `/runbook` and `/glossary` \u2014 station documents as Markdown.\n\nLive updates come from `WS /stream`. Every message is an envelope\n`{\"type\": <event>, \"payload\": <object>}` with five event types:\n`recording.new` (payload: a /recordings list item), `recording.updated`\n(same shape, sent when a clip's pipeline stage or verdicts change),\n`status.changed` (payload: the /status shape, sent when station settings\nchange), and \u2014 only while a deep tune session is running \u2014 `spectrum.frame`\n(payload: frequency axis metadata plus a dB curve and per-channel powers)\nand `deep_tune.state` (payload: started/warning/stopped with a reason).\nThe stream sends events only \u2014 anything a client sends is ignored.\n\nErrors are RFC 7807 problem details (`application/problem+json`) with a\nstable `code` field to switch on.\n\nThe API is unauthenticated by design: it is meant for a private LAN or\nTailscale network only, and must not be exposed to the public internet.\nTransmissions are received for personal monitoring; audio must not be\nrebroadcast.\n",
     "version": "0.1.0"
   },
   "paths": {
@@ -1232,6 +1232,28 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/StatsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sky": {
+      "get": {
+        "tags": [
+          "sky"
+        ],
+        "summary": "What's overhead right now",
+        "description": "Live aircraft positions within the station's configured radius, tried against a chain of community ADS-B aggregators and falling back to OpenSky when all of them are unavailable. Each aircraft is marked `heard_recently` when its hex matches a clip captured within the station's heard window, linking the live picture to actual radio traffic. Responses are cached for a few seconds so multiple open dashboard tabs share one upstream lookup. When every source in the chain is down this still returns 200 with `source` null and an empty aircraft list \u2014 a quiet sky and a down source chain look the same on the wire except for that field.",
+        "operationId": "get_sky_sky_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkyResponse"
                 }
               }
             }
@@ -3170,6 +3192,221 @@
         ],
         "title": "SinceLastApply",
         "description": "Activity since the most recent tuning apply, for before/after comparison."
+      },
+      "SkyAircraftResource": {
+        "properties": {
+          "hex": {
+            "type": "string",
+            "title": "Hex",
+            "description": "ICAO 24-bit address, lowercase hex."
+          },
+          "callsign": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Callsign"
+          },
+          "lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lat"
+          },
+          "lon": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lon"
+          },
+          "alt_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alt Ft"
+          },
+          "gs_kt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gs Kt",
+            "description": "Ground speed in knots."
+          },
+          "track": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Track",
+            "description": "True track in degrees."
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type",
+            "description": "ICAO aircraft type designator."
+          },
+          "registration": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Registration"
+          },
+          "squawk": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Squawk"
+          },
+          "seen_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seen S",
+            "description": "Seconds since the source last heard this aircraft's position."
+          },
+          "heard_recently": {
+            "type": "boolean",
+            "title": "Heard Recently",
+            "description": "True when a clip matched this aircraft's hex within the station's heard window \u2014 the clip\u2194sky fusion signal."
+          },
+          "heard_recording_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Heard Recording Ids",
+            "description": "Recordings that matched this hex within the heard window."
+          }
+        },
+        "type": "object",
+        "required": [
+          "hex",
+          "heard_recently"
+        ],
+        "title": "SkyAircraftResource",
+        "description": "One live position, normalized across whichever source answered."
+      },
+      "SkyResponse": {
+        "properties": {
+          "_links": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "type": "object",
+            "title": "Links",
+            "description": "HAL links: self plus related resources and the actions currently available on this resource."
+          },
+          "source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SkySource"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Which source answered this lookup; null when the whole chain is down."
+          },
+          "attribution": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attribution",
+            "description": "Credit line for the active source."
+          },
+          "radius_nm": {
+            "type": "number",
+            "title": "Radius Nm"
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At"
+          },
+          "aircraft": {
+            "items": {
+              "$ref": "#/components/schemas/SkyAircraftResource"
+            },
+            "type": "array",
+            "title": "Aircraft"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "attribution",
+          "radius_nm",
+          "generated_at",
+          "aircraft"
+        ],
+        "title": "SkyResponse",
+        "description": "Live positions within range, fused with what the station has heard.\n\nA quiet sky and a down source chain look almost the same on the wire:\nboth return an empty aircraft list. The difference is which source\nanswered \u2014 null only when every source in the chain failed."
+      },
+      "SkySource": {
+        "type": "string",
+        "enum": [
+          "airplanes_live",
+          "adsb_lol",
+          "adsb_fi",
+          "opensky"
+        ],
+        "title": "SkySource",
+        "description": "Which chain leg answered a /sky lookup."
       },
       "SquelchOverride": {
         "properties": {

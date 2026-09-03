@@ -47,6 +47,14 @@ It is large and never committed; run `scripts/fetch_aircraft_db.sh` to download
 it to `data/aircraft_db.csv`. Please cite the OpenSky Network as its authors
 request when redistributing derived data.
 
+The Sky view's live positions come from a chain of keyless, non-commercial
+aggregators — [airplanes.live](https://airplanes.live/),
+[adsb.lol](https://adsb.lol/) (data under the
+[Open Database License (ODbL) 1.0](https://opendatacommons.org/licenses/odbl/1-0/)),
+and [adsb.fi](https://adsb.fi/) — with
+[The OpenSky Network](https://opensky-network.org/) as a last-resort fallback
+when all three are unavailable.
+
 ## Quickstart
 
 Requires Python 3.12 managed by [uv](https://docs.astral.sh/uv/).

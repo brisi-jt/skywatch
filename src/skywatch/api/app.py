@@ -27,6 +27,7 @@ from skywatch.api.routes import (
     eval,
     frequencies,
     recordings,
+    sky,
     station_settings,
     stats,
     status,
@@ -39,6 +40,7 @@ from skywatch.api.services.deep_tune import (
     PyRtlSdrSourceFactory,
 )
 from skywatch.api.services.recordings import build_summaries
+from skywatch.api.services.sky import SkyService, build_sky_service
 from skywatch.api.services.status import build_status
 from skywatch.api.ws import ChangePoller, StreamHub, run_poller
 from skywatch.db import fts
@@ -61,6 +63,8 @@ Reading the data:
 - `/status` — station health; `/frequencies` — the listening plan.
 - `/recordings` — the clip library; `/clips/interesting` — the good bits;
   `/digest` — one day summarised for a "today" view.
+- `/sky` — live aircraft positions overhead, fused with what the station
+  has actually heard.
 - `/runbook` and `/glossary` — station documents as Markdown.
 
 Live updates come from `WS /stream`. Every message is an envelope
@@ -109,6 +113,7 @@ def create_app(
     ws_poll_interval: float = 1.0,
     deep_tune_factory: IQSourceFactory | None = None,
     fts_available: bool | None = None,
+    sky_service: SkyService | None = None,
 ) -> FastAPI:
     settings = settings or Settings()
     engine = engine or create_db_engine(default_db_path(settings.data_root))
@@ -219,6 +224,7 @@ def create_app(
     )
     app.state.stream_hub = hub
     app.state.deep_tune = deep_tune
+    app.state.sky_service = sky_service or build_sky_service(settings)
 
     # The dashboard is served same-origin in normal use; the permissive CORS
     # policy exists for dashboard development servers on other local ports,
@@ -242,6 +248,7 @@ def create_app(
     app.include_router(tuning.router)
     app.include_router(eval.router)
     app.include_router(stats.router)
+    app.include_router(sky.router)
 
     @app.websocket("/stream")
     async def stream(websocket: WebSocket) -> None:

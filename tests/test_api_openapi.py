@@ -22,8 +22,8 @@ class TestOpenAPISnapshot:
         )
 
     def test_no_aircraft_live_route(self, station):
-        # live aircraft positions need hardware this station does not have;
-        # the contract must not advertise the route
+        # the station's own SDR never reports live aircraft positions; that
+        # data comes from /sky via community aggregators, not a local dongle
         assert not any("/aircraft" in path for path in station.app.openapi()["paths"])
 
     def test_descriptions_present_on_every_operation(self, station):

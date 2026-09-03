@@ -24,6 +24,7 @@ from skywatch.db.enums import (
     FrequencyMode,
     RecordingStage,
 )
+from skywatch.providers.flightdata.sky import SkySource
 
 
 class Link(BaseModel):
@@ -540,6 +541,54 @@ class NotableDaysResponse(HALModel):
     """The station's most eventful days on record."""
 
     items: list[NotableDay] = Field(description="Highest-scoring days first.")
+
+
+# -- sky ------------------------------------------------------------------------------
+
+
+class SkyAircraftResource(BaseModel):
+    """One live position, normalized across whichever source answered."""
+
+    hex: str = Field(description="ICAO 24-bit address, lowercase hex.")
+    callsign: str | None = None
+    lat: float | None = None
+    lon: float | None = None
+    alt_ft: float | None = None
+    gs_kt: float | None = Field(default=None, description="Ground speed in knots.")
+    track: float | None = Field(default=None, description="True track in degrees.")
+    type: str | None = Field(default=None, description="ICAO aircraft type designator.")
+    registration: str | None = None
+    squawk: str | None = None
+    seen_s: float | None = Field(
+        default=None, description="Seconds since the source last heard this aircraft's position."
+    )
+    heard_recently: bool = Field(
+        description=(
+            "True when a clip matched this aircraft's hex within the station's "
+            "heard window — the clip↔sky fusion signal."
+        )
+    )
+    heard_recording_ids: list[int] = Field(
+        default_factory=list,
+        description="Recordings that matched this hex within the heard window.",
+    )
+
+
+class SkyResponse(HALModel):
+    """Live positions within range, fused with what the station has heard.
+
+    A quiet sky and a down source chain look almost the same on the wire:
+    both return an empty aircraft list. The difference is which source
+    answered — null only when every source in the chain failed.
+    """
+
+    source: SkySource | None = Field(
+        description="Which source answered this lookup; null when the whole chain is down."
+    )
+    attribution: str | None = Field(description="Credit line for the active source.")
+    radius_nm: float
+    generated_at: datetime
+    aircraft: list[SkyAircraftResource]
 
 
 # -- tuning -------------------------------------------------------------------------
