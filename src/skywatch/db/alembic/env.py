@@ -5,6 +5,7 @@ from sqlalchemy import engine_from_config, pool
 from sqlmodel import SQLModel
 
 import skywatch.db.models  # noqa: F401  (register tables on the shared metadata)
+from skywatch.db.fts import include_name
 
 config = context.config
 target_metadata = SQLModel.metadata
@@ -52,6 +53,7 @@ def run_migrations_online() -> None:
             connection=connection,
             target_metadata=target_metadata,
             render_as_batch=True,
+            include_name=include_name,
         )
 
         with context.begin_transaction():
