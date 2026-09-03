@@ -14,8 +14,8 @@ from skywatch.api.deps import (
     get_settings,
     get_timezone,
 )
-from skywatch.api.schemas import DigestResponse
-from skywatch.api.services.digest import build_digest, regenerate_today_summary
+from skywatch.api.schemas import DigestResponse, NotableDaysResponse
+from skywatch.api.services.digest import build_digest, build_notable_days, regenerate_today_summary
 from skywatch.settings import Settings
 
 router = APIRouter(tags=["digest"])
@@ -71,3 +71,22 @@ def summarise_today(
     return regenerate_today_summary(
         session, tz=tz, chain=chain, daily_call_cap=settings.llm.daily_call_cap
     )
+
+
+@router.get(
+    "/digest/notable",
+    response_model=NotableDaysResponse,
+    summary="The station's most eventful days",
+    description=(
+        "Station-local days ranked by weighted interestingness — emergency, "
+        "guard-frequency and go-around clips count for more than an ordinary "
+        "interesting flag, so a single real emergency call can outrank a day "
+        "with several routine flags. Empty until a clip has been flagged "
+        "interesting."
+    ),
+)
+def get_notable_days(
+    session: Annotated[Session, Depends(get_session)],
+    tz: Annotated[ZoneInfo, Depends(get_timezone)],
+) -> NotableDaysResponse:
+    return build_notable_days(session, tz=tz)

@@ -28,6 +28,7 @@ from skywatch.api.routes import (
     frequencies,
     recordings,
     station_settings,
+    stats,
     status,
     tuning,
 )
@@ -240,6 +241,7 @@ def create_app(
     app.include_router(station_settings.router)
     app.include_router(tuning.router)
     app.include_router(eval.router)
+    app.include_router(stats.router)
 
     @app.websocket("/stream")
     async def stream(websocket: WebSocket) -> None:

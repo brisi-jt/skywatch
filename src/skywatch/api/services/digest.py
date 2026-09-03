@@ -4,6 +4,7 @@ Day boundaries follow the station's configured timezone, so "Tuesday"
 means Tuesday as the listener experiences it, not UTC Tuesday.
 """
 
+from collections import defaultdict
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -12,9 +13,15 @@ from sqlmodel import Session, select
 from starlette import status
 
 from skywatch.api.errors import APIErrorCode, ProblemException
-from skywatch.api.schemas import DigestNarrative, DigestResponse, Link
+from skywatch.api.schemas import (
+    DigestNarrative,
+    DigestResponse,
+    Link,
+    NotableDay,
+    NotableDaysResponse,
+)
 from skywatch.api.services.recordings import build_summaries, day_start_utc
-from skywatch.db.enums import FeedbackVerdict
+from skywatch.db.enums import ClassificationCategory, FeedbackVerdict
 from skywatch.db.models import Classification, Feedback, Recording
 from skywatch.pipeline import narrative as narrative_cache
 from skywatch.providers.llm.base import Classifier
@@ -23,6 +30,16 @@ GREATEST_HITS_LIMIT = 8
 
 MIN_SUMMARY_INTERVAL_S = 600
 """Ten minutes between on-demand narrative regenerations, server-enforced."""
+
+NOTABLE_DAYS_LIMIT = 10
+
+CATEGORY_WEIGHTS: dict[ClassificationCategory, float] = {
+    ClassificationCategory.EMERGENCY: 5.0,
+    ClassificationCategory.GUARD_ACTIVITY: 4.0,
+    ClassificationCategory.GO_AROUND: 3.0,
+}
+DEFAULT_INTERESTING_WEIGHT = 1.0
+"""Score contributed by an interesting clip outside the weighted categories."""
 
 
 def _narrative_resource(session: Session, day: date) -> DigestNarrative | None:
@@ -164,3 +181,51 @@ def regenerate_today_summary(
         )
     session.commit()
     return build_digest(session, day=today, tz=tz, today=today)
+
+
+def build_notable_days(
+    session: Session, *, tz: ZoneInfo, limit: int = NOTABLE_DAYS_LIMIT
+) -> NotableDaysResponse:
+    """The station's most eventful days, weighted by how interesting they were.
+
+    Emergency, guard-frequency and go-around clips score higher than an
+    ordinary interesting flag, so a day with one real emergency call can
+    outrank a day with several routine "interesting" clips.
+    """
+    candidate_ids = list(
+        session.exec(
+            select(Classification.recording_id).where(Classification.is_interesting).distinct()
+        ).all()
+    )
+    latest = _latest_classifications(session, candidate_ids)
+    recordings = (
+        {
+            rec.id: rec
+            for rec in session.exec(
+                select(Recording).where(Recording.id.in_(candidate_ids))  # type: ignore[attr-defined]
+            ).all()
+        }
+        if candidate_ids
+        else {}
+    )
+
+    scores: dict[date, float] = defaultdict(float)
+    counts: dict[date, int] = defaultdict(int)
+    for rec_id, verdict in latest.items():
+        if not verdict.is_interesting:
+            continue
+        rec = recordings.get(rec_id)
+        if rec is None:
+            continue
+        local_day = rec.started_at_utc.astimezone(tz).date()
+        scores[local_day] += CATEGORY_WEIGHTS.get(verdict.category, DEFAULT_INTERESTING_WEIGHT)
+        counts[local_day] += 1
+
+    ranked_days = sorted(scores, key=lambda day: (-scores[day], -day.toordinal()))[:limit]
+    return NotableDaysResponse(
+        items=[
+            NotableDay(date=day, score=round(scores[day], 2), interesting_count=counts[day])
+            for day in ranked_days
+        ],
+        links={"self": Link(href="/digest/notable")},
+    )

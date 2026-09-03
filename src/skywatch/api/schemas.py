@@ -465,6 +465,83 @@ class DigestResponse(HALModel):
     )
 
 
+# -- stats & notable days ------------------------------------------------------------
+
+
+class DailyMovementCount(BaseModel):
+    """Total and interesting transmission counts for one station-local day."""
+
+    date: date_type
+    total_count: int
+    interesting_count: int
+
+
+class HourlyHeatCell(BaseModel):
+    """A transmission count for one station-local hour on one frequency.
+
+    Only non-zero combinations are included; anything absent is zero.
+    """
+
+    hour: int = Field(description="Station-local hour of day, 0-23.")
+    freq_id: int
+    count: int
+
+
+class AirlineCount(BaseModel):
+    """How often an airline was the top-ranked aircraft match for a clip."""
+
+    airline_name: str
+    count: int
+
+
+class StatsResponse(HALModel):
+    """Aggregate numbers over the station's most recent listening window."""
+
+    window_days: int = Field(description="Size of the rolling window these stats cover.")
+    days_covered: int = Field(
+        description="Distinct station-local days with at least one recording in the window."
+    )
+    total_count: int = Field(description="Transmissions recorded within the window.")
+    interesting_rate: float | None = Field(
+        description=(
+            "Share of the window's transmissions flagged interesting; null when "
+            "the window has no recordings yet."
+        )
+    )
+    go_around_count: int
+    daily_counts: list[DailyMovementCount] = Field(
+        description="One entry per day in the window, oldest first."
+    )
+    heat_frequencies: list[FrequencyRef] = Field(
+        description="Frequencies that appear in the heat grid, alphabetical by label."
+    )
+    hourly_heat: list[HourlyHeatCell] = Field(
+        description="Non-zero hour-by-frequency cells for the busiest-hour heat grid."
+    )
+    top_airlines: list[AirlineCount] = Field(
+        description="Airlines heard most often, busiest first."
+    )
+
+
+class NotableDay(BaseModel):
+    """One station-local day, ranked by how eventful it was."""
+
+    date: date_type
+    score: float = Field(
+        description=(
+            "Weighted interestingness for the day: emergency, guard-frequency "
+            "and go-around clips count for more than an ordinary interesting flag."
+        )
+    )
+    interesting_count: int = Field(description="Interesting clips recorded that day.")
+
+
+class NotableDaysResponse(HALModel):
+    """The station's most eventful days on record."""
+
+    items: list[NotableDay] = Field(description="Highest-scoring days first.")
+
+
 # -- tuning -------------------------------------------------------------------------
 
 

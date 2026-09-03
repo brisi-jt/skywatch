@@ -164,11 +164,46 @@ export function useRecordingDetail(id: number, enabled: boolean) {
   });
 }
 
+/** The station's story: daily trend, busiest-hour heat grid, top airlines. */
+export function useStats() {
+  return useQuery({
+    queryKey: ["stats"],
+    queryFn: async () => {
+      const result = await api.GET("/stats");
+      return unwrap(result);
+    },
+  });
+}
+
+/** The station's most eventful days, for the notable-days rail. */
+export function useNotableDays() {
+  return useQuery({
+    queryKey: ["notable-days"],
+    queryFn: async () => {
+      const result = await api.GET("/digest/notable");
+      return unwrap(result);
+    },
+  });
+}
+
+/** How well the classifier agrees with listener feedback, for the story page. */
+export function useFeedbackEval() {
+  return useQuery({
+    queryKey: ["eval-feedback"],
+    queryFn: async () => {
+      const result = await api.GET("/eval/feedback");
+      return unwrap(result);
+    },
+  });
+}
+
 export function useDocument(name: "runbook" | "glossary") {
   return useQuery({
     queryKey: ["document", name],
     queryFn: async () => {
-      const result = await api.GET(name === "runbook" ? "/runbook" : "/glossary");
+      const result = await api.GET(
+        name === "runbook" ? "/runbook" : "/glossary",
+      );
       return unwrap(result);
     },
     staleTime: 5 * 60_000,
@@ -178,7 +213,10 @@ export function useDocument(name: "runbook" | "glossary") {
 export function useFrequencyAction() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { freqId: number; action: "activate" | "deactivate" }) => {
+    mutationFn: async (input: {
+      freqId: number;
+      action: "activate" | "deactivate";
+    }) => {
       const path =
         input.action === "activate"
           ? ("/frequencies/{freq_id}/activate" as const)
@@ -198,7 +236,10 @@ export function useFrequencyAction() {
 export function useFeedback() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { recordingId: number; verdict: "up" | "down" }) => {
+    mutationFn: async (input: {
+      recordingId: number;
+      verdict: "up" | "down";
+    }) => {
       const result = await api.POST("/recordings/{recording_id}/feedback", {
         params: { path: { recording_id: input.recordingId } },
         body: { verdict: input.verdict },
@@ -206,7 +247,9 @@ export function useFeedback() {
       return unwrap(result);
     },
     onSuccess: (_data, input) => {
-      queryClient.invalidateQueries({ queryKey: ["recording", input.recordingId] });
+      queryClient.invalidateQueries({
+        queryKey: ["recording", input.recordingId],
+      });
       queryClient.invalidateQueries({ queryKey: ["recordings"] });
       queryClient.invalidateQueries({ queryKey: ["digest"] });
     },

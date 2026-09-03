@@ -805,6 +805,28 @@
         }
       }
     },
+    "/digest/notable": {
+      "get": {
+        "tags": [
+          "digest"
+        ],
+        "summary": "The station's most eventful days",
+        "description": "Station-local days ranked by weighted interestingness \u2014 emergency, guard-frequency and go-around clips count for more than an ordinary interesting flag, so a single real emergency call can outrank a day with several routine flags. Empty until a clip has been flagged interesting.",
+        "operationId": "get_notable_days_digest_notable_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotableDaysResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/runbook": {
       "get": {
         "tags": [
@@ -1194,6 +1216,28 @@
           }
         }
       }
+    },
+    "/stats": {
+      "get": {
+        "tags": [
+          "stats"
+        ],
+        "summary": "The station's story in numbers",
+        "description": "Aggregate numbers over the station's most recent listening window: the daily movement trend, a busiest-hour-by-frequency heat grid, the airlines heard most often, the share of transmissions flagged interesting, and how many go-arounds were recorded. Returns the same zeroed shape when the window has no recordings yet.",
+        "operationId": "get_stats_stats_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1390,6 +1434,25 @@
         ],
         "title": "AircraftMatchResource",
         "description": "A probable aircraft near the station when the clip was captured.\n\nCandidates are heuristic: they come from position data around the\nreceiver at capture time, not from decoding the transmission. Present\nthem as 'probably/possibly', never as fact."
+      },
+      "AirlineCount": {
+        "properties": {
+          "airline_name": {
+            "type": "string",
+            "title": "Airline Name"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "airline_name",
+          "count"
+        ],
+        "title": "AirlineCount",
+        "description": "How often an airline was the top-ranked aircraft match for a clip."
       },
       "AppliedTuning": {
         "properties": {
@@ -1802,6 +1865,31 @@
         ],
         "title": "ConfState",
         "description": "How the rtl_airband config file on disk relates to the database plan."
+      },
+      "DailyMovementCount": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "total_count": {
+            "type": "integer",
+            "title": "Total Count"
+          },
+          "interesting_count": {
+            "type": "integer",
+            "title": "Interesting Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "total_count",
+          "interesting_count"
+        ],
+        "title": "DailyMovementCount",
+        "description": "Total and interesting transmission counts for one station-local day."
       },
       "DeepTuneSessionResponse": {
         "properties": {
@@ -2492,6 +2580,31 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "HourlyHeatCell": {
+        "properties": {
+          "hour": {
+            "type": "integer",
+            "title": "Hour",
+            "description": "Station-local hour of day, 0-23."
+          },
+          "freq_id": {
+            "type": "integer",
+            "title": "Freq Id"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "hour",
+          "freq_id",
+          "count"
+        ],
+        "title": "HourlyHeatCell",
+        "description": "A transmission count for one station-local hour on one frequency.\n\nOnly non-zero combinations are included; anything absent is zero."
+      },
       "Link": {
         "properties": {
           "href": {
@@ -2545,6 +2658,59 @@
         ],
         "title": "MetersResponse",
         "description": "Live meter readings for every active frequency."
+      },
+      "NotableDay": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "score": {
+            "type": "number",
+            "title": "Score",
+            "description": "Weighted interestingness for the day: emergency, guard-frequency and go-around clips count for more than an ordinary interesting flag."
+          },
+          "interesting_count": {
+            "type": "integer",
+            "title": "Interesting Count",
+            "description": "Interesting clips recorded that day."
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "score",
+          "interesting_count"
+        ],
+        "title": "NotableDay",
+        "description": "One station-local day, ranked by how eventful it was."
+      },
+      "NotableDaysResponse": {
+        "properties": {
+          "_links": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "type": "object",
+            "title": "Links",
+            "description": "HAL links: self plus related resources and the actions currently available on this resource."
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/NotableDay"
+            },
+            "type": "array",
+            "title": "Items",
+            "description": "Highest-scoring days first."
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "NotableDaysResponse",
+        "description": "The station's most eventful days on record."
       },
       "ProblemDetail": {
         "properties": {
@@ -3085,6 +3251,95 @@
         ],
         "title": "StatsFileState",
         "description": "Freshness of the capture process's statistics file."
+      },
+      "StatsResponse": {
+        "properties": {
+          "_links": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "type": "object",
+            "title": "Links",
+            "description": "HAL links: self plus related resources and the actions currently available on this resource."
+          },
+          "window_days": {
+            "type": "integer",
+            "title": "Window Days",
+            "description": "Size of the rolling window these stats cover."
+          },
+          "days_covered": {
+            "type": "integer",
+            "title": "Days Covered",
+            "description": "Distinct station-local days with at least one recording in the window."
+          },
+          "total_count": {
+            "type": "integer",
+            "title": "Total Count",
+            "description": "Transmissions recorded within the window."
+          },
+          "interesting_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interesting Rate",
+            "description": "Share of the window's transmissions flagged interesting; null when the window has no recordings yet."
+          },
+          "go_around_count": {
+            "type": "integer",
+            "title": "Go Around Count"
+          },
+          "daily_counts": {
+            "items": {
+              "$ref": "#/components/schemas/DailyMovementCount"
+            },
+            "type": "array",
+            "title": "Daily Counts",
+            "description": "One entry per day in the window, oldest first."
+          },
+          "heat_frequencies": {
+            "items": {
+              "$ref": "#/components/schemas/FrequencyRef"
+            },
+            "type": "array",
+            "title": "Heat Frequencies",
+            "description": "Frequencies that appear in the heat grid, alphabetical by label."
+          },
+          "hourly_heat": {
+            "items": {
+              "$ref": "#/components/schemas/HourlyHeatCell"
+            },
+            "type": "array",
+            "title": "Hourly Heat",
+            "description": "Non-zero hour-by-frequency cells for the busiest-hour heat grid."
+          },
+          "top_airlines": {
+            "items": {
+              "$ref": "#/components/schemas/AirlineCount"
+            },
+            "type": "array",
+            "title": "Top Airlines",
+            "description": "Airlines heard most often, busiest first."
+          }
+        },
+        "type": "object",
+        "required": [
+          "window_days",
+          "days_covered",
+          "total_count",
+          "interesting_rate",
+          "go_around_count",
+          "daily_counts",
+          "heat_frequencies",
+          "hourly_heat",
+          "top_airlines"
+        ],
+        "title": "StatsResponse",
+        "description": "Aggregate numbers over the station's most recent listening window."
       },
       "StatusBudgets": {
         "properties": {

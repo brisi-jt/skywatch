@@ -36,19 +36,33 @@ export type SquelchOverride = Schemas["SquelchOverride"];
 export type MetersResponse = Schemas["MetersResponse"];
 export type ChannelMeter = Schemas["ChannelMeter"];
 export type DeepTuneState = Schemas["DeepTuneState"];
+export type StatsResponse = Schemas["StatsResponse"];
+export type DailyMovementCount = Schemas["DailyMovementCount"];
+export type HourlyHeatCell = Schemas["HourlyHeatCell"];
+export type AirlineCount = Schemas["AirlineCount"];
+export type NotableDay = Schemas["NotableDay"];
+export type NotableDaysResponse = Schemas["NotableDaysResponse"];
+export type EvalFeedbackResponse = Schemas["EvalFeedbackResponse"];
+export type EvalDisagreement = Schemas["EvalDisagreement"];
 
 export function audioUrl(recordingId: number): string {
   return `${API_BASE}/recordings/${recordingId}/audio`;
 }
 
 export function wsUrl(): string {
-  const base = API_BASE || (typeof window !== "undefined" ? window.location.origin : "");
+  const base =
+    API_BASE || (typeof window !== "undefined" ? window.location.origin : "");
   return base.replace(/^http/, "ws") + "/stream";
 }
 
 /** Narrow an unknown error payload to an RFC 7807 problem detail. */
 export function asProblem(value: unknown): ProblemDetail | null {
-  if (value && typeof value === "object" && "code" in value && "detail" in value) {
+  if (
+    value &&
+    typeof value === "object" &&
+    "code" in value &&
+    "detail" in value
+  ) {
     return value as ProblemDetail;
   }
   return null;

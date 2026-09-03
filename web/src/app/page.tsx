@@ -3,7 +3,8 @@
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Play, Sparkles } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 
 import { ClipCard } from "@/components/clip-card";
 import { EmptyHero } from "@/components/empty-hero";
@@ -18,11 +19,28 @@ import {
   useSummariseToday,
 } from "@/lib/api/hooks";
 import { playableQueue } from "@/lib/clip";
-import { clockTime, friendlyDate, shiftDay, todayIso, weekday } from "@/lib/format";
+import {
+  clockTime,
+  friendlyDate,
+  shiftDay,
+  todayIso,
+  weekday,
+} from "@/lib/format";
 import { usePlayer } from "@/lib/player";
 
 export default function TodayPage() {
-  const [date, setDate] = useState(todayIso);
+  return (
+    <Suspense>
+      <TodayView />
+    </Suspense>
+  );
+}
+
+function TodayView() {
+  const searchParams = useSearchParams();
+  const [date, setDate] = useState(
+    () => searchParams.get("date") ?? todayIso(),
+  );
   const [direction, setDirection] = useState(0);
   const reducedMotion = useReducedMotion();
   const { data: status } = useStatus();
@@ -38,7 +56,9 @@ export default function TodayPage() {
       : Number(window.localStorage.getItem("skywatch:summary:cooldown") ?? 0),
   );
 
-  const featuredQueue = digest.data ? playableQueue(digest.data.interesting) : [];
+  const featuredQueue = digest.data
+    ? playableQueue(digest.data.interesting)
+    : [];
   const hitsQueue = digest.data ? playableQueue(digest.data.greatest_hits) : [];
 
   const isToday = date === todayIso();
@@ -64,7 +84,8 @@ export default function TodayPage() {
       onError: (err) => {
         if (err instanceof ApiError && err.status === 429) {
           const retry = Number(
-            (err.problem as { retry_after_s?: number } | null)?.retry_after_s ?? 600,
+            (err.problem as { retry_after_s?: number } | null)?.retry_after_s ??
+              600,
           );
           startCooldown(retry * 1000);
         }
@@ -81,38 +102,56 @@ export default function TodayPage() {
   };
 
   const dayVariants = {
-    enter: (d: number) => (reducedMotion ? { opacity: 1 } : { x: d >= 0 ? 28 : -28, opacity: 0 }),
+    enter: (d: number) =>
+      reducedMotion ? { opacity: 1 } : { x: d >= 0 ? 28 : -28, opacity: 0 },
     center: { x: 0, opacity: 1 },
-    exit: (d: number) => (reducedMotion ? { opacity: 1 } : { x: d >= 0 ? -28 : 28, opacity: 0 }),
+    exit: (d: number) =>
+      reducedMotion ? { opacity: 1 } : { x: d >= 0 ? -28 : 28, opacity: 0 },
   };
 
   return (
     <div className="flex flex-col gap-8">
       {status && <HealthStrip status={status} />}
 
-      <nav className="flex items-center justify-end gap-1" aria-label="Change day">
-        <Button
-          variant="outline"
-          size="icon"
-          className="size-10"
-          aria-label="Previous day"
-          onClick={() => goToDay(-1)}
+      <nav
+        className="flex items-center justify-between gap-1"
+        aria-label="Change day"
+      >
+        <Link
+          href="/stats/"
+          className="text-base text-muted-foreground underline underline-offset-4 hover:text-foreground"
         >
-          <ChevronLeft className="size-5" />
-        </Button>
-        <Button variant="outline" className="min-h-10" disabled={isToday} onClick={goToToday}>
-          Today
-        </Button>
-        <Button
-          variant="outline"
-          size="icon"
-          className="size-10"
-          aria-label="Next day"
-          disabled={isToday}
-          onClick={() => goToDay(1)}
-        >
-          <ChevronRight className="size-5" />
-        </Button>
+          The station&apos;s story →
+        </Link>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="outline"
+            size="icon"
+            className="size-10"
+            aria-label="Previous day"
+            onClick={() => goToDay(-1)}
+          >
+            <ChevronLeft className="size-5" />
+          </Button>
+          <Button
+            variant="outline"
+            className="min-h-10"
+            disabled={isToday}
+            onClick={goToToday}
+          >
+            Today
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            className="size-10"
+            aria-label="Next day"
+            disabled={isToday}
+            onClick={() => goToDay(1)}
+          >
+            <ChevronRight className="size-5" />
+          </Button>
+        </div>
       </nav>
 
       <AnimatePresence mode="wait" custom={direction} initial={false}>
@@ -127,13 +166,17 @@ export default function TodayPage() {
           transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
         >
           <header>
-            <p className="text-base text-muted-foreground">{friendlyDate(date)}</p>
+            <p className="text-base text-muted-foreground">
+              {friendlyDate(date)}
+            </p>
             <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight">
               {digest.data ? (
                 <>
                   {weekday(date)}: {digest.data.total_count}{" "}
-                  {digest.data.total_count === 1 ? "transmission" : "transmissions"},{" "}
-                  {digest.data.interesting_count} worth hearing
+                  {digest.data.total_count === 1
+                    ? "transmission"
+                    : "transmissions"}
+                  , {digest.data.interesting_count} worth hearing
                 </>
               ) : digest.isError ? (
                 "The day's digest could not be loaded"
@@ -144,7 +187,10 @@ export default function TodayPage() {
           </header>
 
           {(digest.data?.narrative || isToday) && (
-            <section aria-label="The day in a few words" className="max-w-prose">
+            <section
+              aria-label="The day in a few words"
+              className="max-w-prose"
+            >
               {digest.data?.narrative && (
                 <>
                   <p className="text-lg leading-relaxed text-foreground/90">
@@ -192,20 +238,25 @@ export default function TodayPage() {
 
           {digest.isError && (
             <p className="text-base text-health-bad">
-              Something went wrong fetching the digest. The station itself is unaffected — try again
-              in a moment.
+              Something went wrong fetching the digest. The station itself is
+              unaffected — try again in a moment.
             </p>
           )}
 
           {digest.data &&
             (digest.data.interesting.length > 0 ? (
-              <section className="flex flex-col gap-4" aria-label="Worth hearing">
+              <section
+                className="flex flex-col gap-4"
+                aria-label="Worth hearing"
+              >
                 {featuredQueue.length > 0 && (
                   <div className="flex justify-end">
                     <Button
                       variant="outline"
                       className="min-h-10"
-                      onClick={() => player.playQueue(featuredQueue, featuredQueue[0].id)}
+                      onClick={() =>
+                        player.playQueue(featuredQueue, featuredQueue[0].id)
+                      }
                     >
                       <Play className="size-4" />
                       Play all worth hearing
@@ -219,17 +270,25 @@ export default function TodayPage() {
                     variant="featured"
                     queue={featuredQueue}
                     expanded={expandedId === clip.id}
-                    onToggle={(id) => setExpandedId((cur) => (cur === id ? null : id))}
+                    onToggle={(id) =>
+                      setExpandedId((cur) => (cur === id ? null : id))
+                    }
                   />
                 ))}
               </section>
             ) : (
               <section className="rounded-xl border bg-card px-6 py-10 text-center">
-                <p className="text-lg">A quiet day on the airwaves — nothing flagged.</p>
+                <p className="text-lg">
+                  A quiet day on the airwaves — nothing flagged.
+                </p>
                 {digest.data.total_count > 0 && (
                   <p className="mt-2 text-base text-muted-foreground">
-                    <Link href={`/clips/?date=${date}`} className="underline underline-offset-4">
-                      Listen through all {digest.data.total_count} clips from this day
+                    <Link
+                      href={`/clips/?date=${date}`}
+                      className="underline underline-offset-4"
+                    >
+                      Listen through all {digest.data.total_count} clips from
+                      this day
                     </Link>
                   </p>
                 )}
@@ -240,11 +299,20 @@ export default function TodayPage() {
 
       {digest.data && digest.data.greatest_hits.length > 0 && (
         <section aria-label="Greatest hits">
-          <h2 className="font-display text-xl font-semibold">All-time greatest hits</h2>
-          <p className="text-sm text-muted-foreground">The clips you keep coming back to.</p>
+          <h2 className="font-display text-xl font-semibold">
+            All-time greatest hits
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            The clips you keep coming back to.
+          </p>
           <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
             {digest.data.greatest_hits.map((clip) => (
-              <ClipCard key={clip.id} clip={clip} variant="small" queue={hitsQueue} />
+              <ClipCard
+                key={clip.id}
+                clip={clip}
+                variant="small"
+                queue={hitsQueue}
+              />
             ))}
           </div>
         </section>
