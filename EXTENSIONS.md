@@ -4,11 +4,15 @@ Ideas deliberately left out of the first version, with enough design notes
 that each can be picked up later without re-deriving the groundwork. Ordered
 roughly by bang-for-buck for this station.
 
-## Second dongle: local ADS-B + OpenSky feeding
+## Second dongle: local ADS-B, sharper matches, and OpenSky feeding
 
-The single biggest upgrade. A second RTL-SDR dongle dedicated to 1090 MHz
-(ADS-B) makes aircraft matching local, instant, and free — and feeding the
-received data to OpenSky improves the station's API standing.
+Live aircraft positions are already on the dashboard — the Sky view pulls
+them from keyless community aggregators (airplanes.live, adsb.lol, adsb.fi,
+falling back to OpenSky), so a second dongle is no longer the prerequisite
+for a live map it once looked like. What a second RTL-SDR dongle dedicated
+to 1090 MHz (ADS-B) still buys is a *better per-clip aircraft match*: local,
+instant, and free, plus a better standing with OpenSky if the same feed is
+shared back.
 
 **Receive side.** Run `dump1090` (or `readsb`) as a fourth launchd service
 against the second dongle (`device_index: 1`, or better, set distinct
@@ -18,8 +22,9 @@ second. Implement a `LocalAdsbSource` conforming to the existing
 `FlightDataSource` seam in `src/skywatch/providers/flightdata/` and select
 it with `enrichment.provider: local_adsb`. Enrichment then queries localhost
 instead of OpenSky: no credits, no OAuth, no 1-hour historical wall, and
-candidates can be captured at the exact clip timestamp. Keep the OpenSky
-client as fallback for periods the local receiver is down.
+candidates can be captured at the exact clip timestamp — sharper matches
+than OpenSky's snapshot cadence allows today. Keep the OpenSky client as
+fallback for periods the local receiver is down.
 
 **Feed side.** The same decoder output can feed OpenSky (their feeder client
 wraps readsb). Two payoffs: feeders receive a larger daily API credit
@@ -30,38 +35,13 @@ enricher at `/states/own` for a feeding station removes the credit budget
 from the picture for all nearby traffic — which is exactly the traffic this
 station cares about.
 
-**The deferred `GET /aircraft/live` route.** Intentionally not present in
-v1 (no stub endpoints). When a local decoder exists, add:
-
-- `GET /aircraft/live` → `200 OK`
-  ```json
-  {
-    "aircraft": [
-      {
-        "icao24": "4009f9",
-        "callsign": "BAW2761",
-        "airline_name": "British Airways",
-        "lat": 51.7,
-        "lon": 0.1,
-        "alt_ft": 3200,
-        "gs_kt": 180,
-        "track_deg": 274,
-        "vertical_rate_fpm": -800,
-        "distance_km": 3.1,
-        "seen_s": 0.4
-      }
-    ],
-    "source": "local_adsb",
-    "queried_at": "2027-01-01T12:00:00Z",
-    "_links": {"self": {"href": "/aircraft/live"}}
-  }
-  ```
-- Sorted by `distance_km` ascending; `aircraft` empty (not an error) when
-  nothing is in range; `503` problem detail with code `adsb_unavailable`
-  when the decoder itself is unreachable.
-- Dashboard consumer: a live map view (the reason this route exists at
-  all). Push updates belong on the existing `WS /stream` as a new
-  `aircraft.live` envelope type, throttled to ~1 Hz.
+**Joining the Sky view.** The live map's source chain
+(`providers/flightdata/sky.py`) already normalizes four different aggregator
+shapes into one `SkyAircraft` record; a local receiver would simply be a
+fifth source — and, being on the same machine with no round trip, the
+natural first one to try rather than the last. Nothing about the map, the
+aircraft glyphs, or the clip-fusion panel would need to change: they only
+ever see the normalized shape, never the source behind it.
 
 ## Scan mode tradeoffs
 
@@ -88,11 +68,10 @@ JSON event bus, so audio wants either a second binary WebSocket or
 MediaSource-friendly chunks over HTTP. Everything else (session lifecycle,
 timeouts, capture restart) is already built.
 
-## Always-on metering architectures (rejected)
+## Rejected approaches
 
-Two ways to meter the spectrum *without* stopping capture were evaluated
-and rejected; recorded here so the conclusion isn't re-derived from
-scratch.
+Ideas that were seriously considered and turned down, recorded here so the
+conclusion isn't re-derived from scratch.
 
 - **Permanent IQ fan-out** (`rtl_tcp` → `rtlmux` → SoapyRTLTCP plugin, with
   rtl_airband and a metering client both consuming the mux): every hop is
@@ -103,11 +82,18 @@ scratch.
 - **ka9q-radio (`radiod`)**, the elegant multichannel answer: its author
   ships and supports it as Linux-only, and this station's production host
   is a Mac. Eliminated on platform.
+- **CARTO dark basemap tiles** for the Sky view's dark theme: the obvious
+  choice on looks alone (a pre-styled dark map needs no filter trickery),
+  but CARTO's basemap terms are not clean for this station's receive-only,
+  personal-use posture the way OSM's tile usage policy is. Dark mode
+  instead applies a CSS filter (invert, hue-rotate) to the same OSM raster
+  tiles light mode uses, so attribution and licensing stay identical
+  across both themes.
 
-Deep Tune's stop-meter-restart model is the deliberate outcome, not a
-stopgap: one dongle has one USB claimant, and the honest costs (a confirm,
-an amber banner, an auto-timeout) beat a permanently degraded capture
-chain.
+Deep Tune's stop-meter-restart model is the deliberate outcome of the first
+two rejections above, not a stopgap: one dongle has one USB claimant, and
+the honest costs (a confirm, an amber banner, an auto-timeout) beat a
+permanently degraded capture chain.
 
 ## ACARS / VDL2
 
@@ -129,18 +115,6 @@ time), the dongle must be retuned for the pass, and the output is images,
 not audio. If pursued, run it as a scheduled borrower of the capture dongle
 (pause rtl_airband, record the pass with `satdump`, resume) rather than
 integrating it into the pipeline.
-
-## Alerting and push notifications
-
-The worker already knows the moment a clip is classified interesting; today
-that knowledge only reaches the dashboard. An `alerts` module subscribed at
-the same point could push via [ntfy](https://ntfy.sh) (simplest:
-`httpx.post("https://ntfy.sh/<topic>", ...)` — free, no account, apps on
-everything), Pushover, or email. Design constraints learned from the
-classifier: alert only on high-confidence categories (emergency, guard
-activity) and rate-limit to avoid a mistranscribed "mayday" waking the
-house at 3 a.m. A per-category threshold in `config.yaml` plus a daily cap
-would cover it.
 
 ## LLM batching (quota escape hatch)
 
@@ -167,9 +141,13 @@ config-only swap (`asr.model`), but a medium model is beyond the 2015
 production laptop's CPU and RAM. Two viable shapes: run it on the M4
 development box for re-transcribing interesting clips after the fact
 (quality where it matters, batch-friendly), or make it the default if the
-station ever migrates to Apple Silicon hardware. The per-transcript
-`engine`/`model` provenance columns exist precisely so mixed-model history
-stays honest.
+station ever migrates to Apple Silicon hardware. An A/B harness now exists
+(`make eval-asr`, dev-box only, models gitignored) to run the same eval
+manifest through both models side by side; production hasn't switched
+because the case for the medium model's CPU and RAM cost hasn't been made
+conclusively either way on the 2015 laptop — re-run the harness with a
+larger manifest before deciding. The per-transcript `engine`/`model`
+provenance columns exist precisely so mixed-model history stays honest.
 
 ## Speaker separation
 
@@ -210,19 +188,9 @@ The dashboard is a static Next.js export behind FastAPI, so PWA is mostly
 manifest work: add a web manifest + icons + a service worker (Serwist is
 the maintained Next.js fit), and "install" it on a phone home screen over
 Tailscale. Offline caching adds little (the data is live by nature), so
-scope it to installability and app feel. Pairs naturally with push
-notifications from the alerting extension above.
-
-## Analytics
-
-The database is already a tidy time series: every transmission with
-frequency, timestamp, duration, category, and aircraft candidates. Cheap
-wins queryable with SQL alone: busiest hours per frequency,
-transmissions-per-day trend, go-around frequency by month, top airlines
-heard, interesting-clip rate over time. A `GET /stats` route feeding a
-dashboard charts view is the natural shape — compute on demand; at this
-write rate SQLite aggregation is instant. Purely additive; needs no schema
-changes until someone wants long-horizon rollups.
+scope it to installability and app feel. Pairs naturally with the ntfy push
+the station already sends for interesting clips — a home-screen icon and a
+phone notification cover most of what a native app would add.
 
 ## Appendix: deploying on a Raspberry Pi
 
