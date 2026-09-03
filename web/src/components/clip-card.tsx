@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ChevronDown, Play, RefreshCcw, ThumbsDown, ThumbsUp } from "lucide-react";
+import { ChevronDown, Play, RefreshCcw, Star, ThumbsDown, ThumbsUp } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import {
@@ -23,6 +23,7 @@ import {
   useReclassify,
   useRecordingDetail,
   useSkySnapshot,
+  useStarClip,
 } from "@/lib/api/hooks";
 import { toPlayerClip } from "@/lib/clip";
 import { clockTime, durationLabel, freqLabel } from "@/lib/format";
@@ -118,7 +119,13 @@ export function ClipCard({
             <p className="truncate text-sm text-muted-foreground">“{clip.transcript_snippet}”</p>
           )}
         </div>
-        <span className="ml-auto shrink-0 font-mono text-sm text-muted-foreground">
+        <StarToggle
+          recordingId={clip.id}
+          starred={clip.starred_at != null}
+          size="sm"
+          className="ml-auto shrink-0"
+        />
+        <span className="shrink-0 font-mono text-sm text-muted-foreground">
           👍 {clip.feedback.up}
         </span>
       </div>
@@ -193,6 +200,8 @@ export function ClipCard({
           )}
         </div>
 
+        <StarToggle recordingId={clip.id} starred={clip.starred_at != null} className="shrink-0" />
+
         {onToggle && (
           <button
             type="button"
@@ -255,6 +264,42 @@ function NowPlaying({ playing }: { playing: boolean }) {
         />
       ))}
     </span>
+  );
+}
+
+/** The favourite toggle: filled when starred, an outline star otherwise. */
+function StarToggle({
+  recordingId,
+  starred,
+  size = "lg",
+  className,
+}: {
+  recordingId: number;
+  starred: boolean;
+  size?: "sm" | "lg";
+  className?: string;
+}) {
+  const star = useStarClip();
+  return (
+    <button
+      type="button"
+      onClick={(event) => {
+        event.stopPropagation();
+        star.mutate({ recordingId, starred: !starred });
+      }}
+      disabled={star.isPending}
+      aria-pressed={starred}
+      aria-label={starred ? "Unstar this clip" : "Star this clip"}
+      title={starred ? "Unstar this clip" : "Star this clip"}
+      className={cn(
+        "flex items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/60 hover:text-interesting",
+        size === "lg" ? "size-10" : "size-8",
+        starred && "text-interesting",
+        className,
+      )}
+    >
+      <Star className={cn(size === "lg" ? "size-5" : "size-4", starred && "fill-current")} />
+    </button>
   );
 }
 

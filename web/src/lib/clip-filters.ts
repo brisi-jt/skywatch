@@ -21,6 +21,7 @@ export interface FilterState {
   category: string;
   interestingOnly: boolean;
   hasAircraft: boolean;
+  starredOnly: boolean;
 }
 
 export const emptyFilters: FilterState = {
@@ -31,6 +32,7 @@ export const emptyFilters: FilterState = {
   category: "all",
   interestingOnly: false,
   hasAircraft: false,
+  starredOnly: false,
 };
 
 /** Whether any filter is set — used to word the result count and show the reset. */
@@ -42,7 +44,8 @@ export function hasActiveFilters(state: FilterState): boolean {
     state.freqId !== "all" ||
     state.category !== "all" ||
     state.interestingOnly ||
-    state.hasAircraft
+    state.hasAircraft ||
+    state.starredOnly
   );
 }
 
@@ -56,6 +59,7 @@ export function buildClipFilters(state: FilterState): ClipFilters {
     ...(state.interestingOnly && { interesting: true as const }),
     ...(state.category !== "all" && { category: state.category }),
     ...(state.hasAircraft && { has_match: true as const }),
+    ...(state.starredOnly && { starred: true as const }),
   };
 }
 
@@ -69,6 +73,7 @@ export function filtersToSearchParams(state: FilterState): URLSearchParams {
   if (state.category !== "all") params.set("category", state.category);
   if (state.interestingOnly) params.set("interesting", "1");
   if (state.hasAircraft) params.set("aircraft", "1");
+  if (state.starredOnly) params.set("starred", "1");
   return params;
 }
 
@@ -87,5 +92,6 @@ export function filtersFromSearchParams(params: URLSearchParams): FilterState {
     category: params.get("category") ?? "all",
     interestingOnly: params.get("interesting") === "1",
     hasAircraft: params.get("aircraft") === "1",
+    starredOnly: params.get("starred") === "1",
   };
 }

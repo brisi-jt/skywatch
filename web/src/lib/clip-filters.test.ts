@@ -17,6 +17,7 @@ const populated: FilterState = {
   category: "emergency",
   interestingOnly: true,
   hasAircraft: true,
+  starredOnly: true,
 };
 
 describe("hasActiveFilters", () => {
@@ -28,6 +29,7 @@ describe("hasActiveFilters", () => {
     expect(hasActiveFilters({ ...emptyFilters, q: "tower" })).toBe(true);
     expect(hasActiveFilters({ ...emptyFilters, interestingOnly: true })).toBe(true);
     expect(hasActiveFilters({ ...emptyFilters, freqId: "2" })).toBe(true);
+    expect(hasActiveFilters({ ...emptyFilters, starredOnly: true })).toBe(true);
   });
 
   it("ignores a blank search string", () => {
@@ -49,7 +51,12 @@ describe("buildClipFilters", () => {
       category: "emergency",
       interesting: true,
       has_match: true,
+      starred: true,
     });
+  });
+
+  it("omits starred when not set", () => {
+    expect(buildClipFilters({ ...emptyFilters, starredOnly: false })).toEqual({});
   });
 
   it("trims the search string and drops it when blank", () => {
@@ -78,6 +85,12 @@ describe("URL round-trip", () => {
     const restored = filtersFromSearchParams(params);
     expect(restored.fromDate).toBe("2026-07-11");
     expect(restored.toDate).toBe("2026-07-11");
+  });
+
+  it("round-trips the starred filter through the URL", () => {
+    const params = filtersToSearchParams({ ...emptyFilters, starredOnly: true });
+    expect(params.toString()).toBe("starred=1");
+    expect(filtersFromSearchParams(params).starredOnly).toBe(true);
   });
 
   it("an explicit range wins over the legacy date param", () => {

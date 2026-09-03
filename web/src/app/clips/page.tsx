@@ -166,6 +166,12 @@ function ClipsView() {
       label: "Has aircraft",
       clear: () => update({ hasAircraft: false }),
     });
+  if (filters.starredOnly)
+    activeFilters.push({
+      key: "starred",
+      label: "Starred",
+      clear: () => update({ starredOnly: false }),
+    });
 
   const clearAllFilters = () => setFilters(emptyFilters);
   const anyActive = hasActiveFilters(filters);
@@ -300,6 +306,13 @@ function ClipsView() {
               onCheckedChange={(v) => update({ hasAircraft: v })}
             />
             Has aircraft
+          </label>
+          <label className="flex min-h-10 items-center gap-2 text-base">
+            <Switch
+              checked={filters.starredOnly}
+              onCheckedChange={(v) => update({ starredOnly: v })}
+            />
+            Starred
           </label>
         </div>
       </section>

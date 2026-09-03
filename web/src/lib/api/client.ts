@@ -47,6 +47,11 @@ export type EvalDisagreement = Schemas["EvalDisagreement"];
 export type SkyResponse = Schemas["SkyResponse"];
 export type SkyAircraftResource = Schemas["SkyAircraftResource"];
 export type SkySource = Schemas["SkySource"];
+export type StarResponse = Schemas["StarResponse"];
+export type IncidentSummary = Schemas["IncidentSummary"];
+export type IncidentListResponse = Schemas["IncidentListResponse"];
+export type IncidentDetail = Schemas["IncidentDetail"];
+export type IncidentClipResource = Schemas["IncidentClipResource"];
 
 export function audioUrl(recordingId: number): string {
   return `${API_BASE}/recordings/${recordingId}/audio`;

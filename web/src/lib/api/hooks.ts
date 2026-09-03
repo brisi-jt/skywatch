@@ -108,6 +108,7 @@ export interface ClipFilters {
   interesting?: true;
   category?: string;
   has_match?: true;
+  starred?: true;
   q?: string;
 }
 
@@ -427,6 +428,119 @@ export function usePingDeepTune() {
     mutationFn: async () => {
       const result = await api.POST("/tuning/deep-tune/ping");
       return unwrap(result);
+    },
+  });
+}
+
+// -- stars ----------------------------------------------------------------------------
+
+/** Star or unstar a clip; invalidates everywhere a starred_at flag or the
+ * star-weighted greatest-hits ranking could be showing. */
+export function useStarClip() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { recordingId: number; starred: boolean }) => {
+      const result = input.starred
+        ? await api.POST("/recordings/{recording_id}/star", {
+            params: { path: { recording_id: input.recordingId } },
+          })
+        : await api.DELETE("/recordings/{recording_id}/star", {
+            params: { path: { recording_id: input.recordingId } },
+          });
+      return unwrap(result);
+    },
+    onSuccess: (_data, input) => {
+      queryClient.invalidateQueries({ queryKey: ["recording", input.recordingId] });
+      queryClient.invalidateQueries({ queryKey: ["recordings"] });
+      queryClient.invalidateQueries({ queryKey: ["digest"] });
+    },
+  });
+}
+
+// -- incidents --------------------------------------------------------------------------
+
+export function useIncidents() {
+  return useQuery({
+    queryKey: ["incidents"],
+    queryFn: async () => {
+      const result = await api.GET("/incidents");
+      return unwrap(result);
+    },
+  });
+}
+
+export function useIncident(id: number | null) {
+  return useQuery({
+    queryKey: ["incident", id],
+    queryFn: async () => {
+      const result = await api.GET("/incidents/{incident_id}", {
+        params: { path: { incident_id: id! } },
+      });
+      return unwrap(result);
+    },
+    enabled: id != null,
+  });
+}
+
+export function useCreateIncident() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (title: string) => {
+      const result = await api.POST("/incidents", { body: { title } });
+      return unwrap(result);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["incidents"] });
+    },
+  });
+}
+
+export function useAddClipToIncident() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { incidentId: number; recordingId: number }) => {
+      const result = await api.POST("/incidents/{incident_id}/clips", {
+        params: { path: { incident_id: input.incidentId } },
+        body: { recording_id: input.recordingId },
+      });
+      return unwrap(result);
+    },
+    onSuccess: (data, input) => {
+      queryClient.setQueryData(["incident", input.incidentId], data);
+      queryClient.invalidateQueries({ queryKey: ["incidents"] });
+    },
+  });
+}
+
+export function useRemoveClipFromIncident() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { incidentId: number; recordingId: number }) => {
+      const result = await api.DELETE("/incidents/{incident_id}/clips/{recording_id}", {
+        params: { path: { incident_id: input.incidentId, recording_id: input.recordingId } },
+      });
+      return unwrap(result);
+    },
+    onSuccess: (data, input) => {
+      queryClient.setQueryData(["incident", input.incidentId], data);
+      queryClient.invalidateQueries({ queryKey: ["incidents"] });
+    },
+  });
+}
+
+export function useDeleteIncident() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (incidentId: number) => {
+      const result = await api.DELETE("/incidents/{incident_id}", {
+        params: { path: { incident_id: incidentId } },
+      });
+      if (result.response.status !== 204) {
+        throw new ApiError(result.response.status, asProblem(result.error));
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["incidents"] });
     },
   });
 }

@@ -93,7 +93,7 @@ export interface paths {
         };
         /**
          * Browse the clip library
-         * @description Recorded transmissions, newest first, as summary cards: frequency, timing, latest transcript snippet, latest verdict, most plausible aircraft candidate, and feedback tallies. All filters combine. Date filters are inclusive and use the station's local day boundaries. `interesting` and `category` match each clip's latest verdict, so a reclassified clip follows its newest classification. `has_match` selects clips with (or without) aircraft candidates. `q` searches transcripts, best match first: bare or "quoted" words are the search text, and the tokens `freq:`, `callsign:`, `interesting`, `before:<date>` and `after:<date>` narrow the results. Explicit filter parameters win over anything the same filter's token sets.
+         * @description Recorded transmissions, newest first, as summary cards: frequency, timing, latest transcript snippet, latest verdict, most plausible aircraft candidate, and feedback tallies. All filters combine. Date filters are inclusive and use the station's local day boundaries. `interesting` and `category` match each clip's latest verdict, so a reclassified clip follows its newest classification. `has_match` selects clips with (or without) aircraft candidates. `q` searches transcripts, best match first: bare or "quoted" words are the search text, and the tokens `freq:`, `callsign:`, `interesting`, `before:<date>` and `after:<date>` narrow the results. Explicit filter parameters win over anything the same filter's token sets. `starred` selects only the clips a listener has starred (or, set false, only the ones they haven't).
          */
         get: operations["list_recordings_recordings_get"];
         put?: never;
@@ -199,6 +199,30 @@ export interface paths {
          */
         post: operations["create_feedback_recordings__recording_id__feedback_post"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/recordings/{recording_id}/star": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Star a clip
+         * @description Marks a clip as a favourite. Starring an already-starred clip leaves its original starred time untouched. Starred clips are selectable with the `starred` filter and weigh more heavily in the all-time greatest-hits list.
+         */
+        post: operations["star_recording_recordings__recording_id__star_post"];
+        /**
+         * Unstar a clip
+         * @description Clears a clip's starred state. Unstarring a clip that was never starred is a no-op, not an error.
+         */
+        delete: operations["unstar_recording_recordings__recording_id__star_delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -548,6 +572,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/incidents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List incident bundles
+         * @description Listener-curated groups of clips that belong together — a go-around sequence, an emergency followed by its resolution — newest first.
+         */
+        get: operations["list_incidents_incidents_get"];
+        put?: never;
+        /**
+         * Start a new incident bundle
+         * @description Creates an empty, titled incident; add clips to it afterwards.
+         */
+        post: operations["create_incident_incidents_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/incidents/{incident_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One incident with its clips in order */
+        get: operations["get_incident_incidents__incident_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete an incident bundle
+         * @description Removes the bundle and its clip memberships; the clips themselves are untouched.
+         */
+        delete: operations["delete_incident_incidents__incident_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/incidents/{incident_id}/clips": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add a clip to an incident
+         * @description Appends a clip to the end of the incident's playback order. A clip already in the incident cannot be added twice.
+         */
+        post: operations["add_clip_incidents__incident_id__clips_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/incidents/{incident_id}/clips/{recording_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove a clip from an incident
+         * @description Drops one clip from the bundle and closes the gap in the playback order; the clip itself is untouched.
+         */
+        delete: operations["remove_clip_incidents__incident_id__clips__recording_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -557,7 +666,7 @@ export interface components {
          * @description Stable machine-readable error codes for problem responses.
          * @enum {string}
          */
-        APIErrorCode: "validation_error" | "not_found" | "frequency_not_found" | "recording_not_found" | "document_not_found" | "audio_deleted" | "audio_file_missing" | "window_conflict" | "capture_paused_low_disk" | "unknown_setting_key" | "invalid_setting_value" | "tuning_invalid_value" | "tuning_unknown_frequency" | "deep_tune_unavailable" | "deep_tune_active" | "deep_tune_not_active" | "recording_not_classifiable" | "summary_rate_limited" | "summary_unavailable" | "method_not_allowed" | "internal_error";
+        APIErrorCode: "validation_error" | "not_found" | "frequency_not_found" | "recording_not_found" | "document_not_found" | "audio_deleted" | "audio_file_missing" | "window_conflict" | "capture_paused_low_disk" | "unknown_setting_key" | "invalid_setting_value" | "tuning_invalid_value" | "tuning_unknown_frequency" | "deep_tune_unavailable" | "deep_tune_active" | "deep_tune_not_active" | "recording_not_classifiable" | "incident_not_found" | "incident_clip_not_found" | "recording_already_in_incident" | "summary_rate_limited" | "summary_unavailable" | "method_not_allowed" | "internal_error";
         /**
          * AircraftMatchResource
          * @description A probable aircraft near the station when the clip was captured.
@@ -1256,6 +1365,107 @@ export interface components {
             count: number;
         };
         /**
+         * IncidentAddClip
+         * @description Request body for appending a clip to an incident.
+         */
+        IncidentAddClip: {
+            /** Recording Id */
+            recording_id: number;
+        };
+        /**
+         * IncidentClipResource
+         * @description One clip's place in an incident's ordered playback.
+         */
+        IncidentClipResource: {
+            /** Position */
+            position: number;
+            recording: components["schemas"]["RecordingSummary"];
+        };
+        /**
+         * IncidentCreate
+         * @description Request body for grouping clips into a new incident.
+         */
+        IncidentCreate: {
+            /** Title */
+            title: string;
+        };
+        /**
+         * IncidentDetail
+         * @description An incident with its clips in playback order.
+         */
+        IncidentDetail: {
+            /**
+             * Links
+             * @description HAL links: self plus related resources and the actions currently available on this resource.
+             */
+            _links?: {
+                [key: string]: components["schemas"]["Link"];
+            };
+            /** Id */
+            id: number;
+            /** Title */
+            title: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /**
+             * Clips
+             * @description Ordered by position, ascending.
+             */
+            clips: components["schemas"]["IncidentClipResource"][];
+        };
+        /** IncidentListResponse */
+        IncidentListResponse: {
+            /**
+             * Links
+             * @description HAL links: self plus related resources and the actions currently available on this resource.
+             */
+            _links?: {
+                [key: string]: components["schemas"]["Link"];
+            };
+            /**
+             * Items
+             * @description Newest incidents first.
+             */
+            items: components["schemas"]["IncidentSummary"][];
+        };
+        /**
+         * IncidentSummary
+         * @description An incident as it appears in the list view.
+         */
+        IncidentSummary: {
+            /**
+             * Links
+             * @description HAL links: self plus related resources and the actions currently available on this resource.
+             */
+            _links?: {
+                [key: string]: components["schemas"]["Link"];
+            };
+            /** Id */
+            id: number;
+            /** Title */
+            title: string;
+            /** Clip Count */
+            clip_count: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
          * Link
          * @description One HAL link: a relative URL on this API.
          */
@@ -1400,6 +1610,11 @@ export interface components {
             /** @description Most plausible aircraft candidate, or null when none was found. */
             top_match: components["schemas"]["AircraftMatchResource"] | null;
             feedback: components["schemas"]["FeedbackCounts"];
+            /**
+             * Starred At
+             * @description When the listener starred this clip, or null when it isn't starred.
+             */
+            starred_at: string | null;
             /** Sample Rate */
             sample_rate: number;
             /**
@@ -1501,6 +1716,11 @@ export interface components {
             /** @description Most plausible aircraft candidate, or null when none was found. */
             top_match: components["schemas"]["AircraftMatchResource"] | null;
             feedback: components["schemas"]["FeedbackCounts"];
+            /**
+             * Starred At
+             * @description When the listener starred this clip, or null when it isn't starred.
+             */
+            starred_at: string | null;
         };
         /**
          * SettingsResponse
@@ -1672,6 +1892,26 @@ export interface components {
             freq_id: number;
             /** Squelch Snr Db */
             squelch_snr_db: number;
+        };
+        /**
+         * StarResponse
+         * @description A clip's star state after a star or unstar request.
+         */
+        StarResponse: {
+            /**
+             * Links
+             * @description HAL links: self plus related resources and the actions currently available on this resource.
+             */
+            _links?: {
+                [key: string]: components["schemas"]["Link"];
+            };
+            /** Recording Id */
+            recording_id: number;
+            /**
+             * Starred At
+             * @description When the clip was starred, or null when it isn't starred.
+             */
+            starred_at: string | null;
         };
         /**
          * StatsFileState
@@ -2158,6 +2398,8 @@ export interface operations {
                 category?: components["schemas"]["ClassificationCategory"] | null;
                 /** @description Whether clips must have aircraft candidates. */
                 has_match?: boolean | null;
+                /** @description true for starred clips only; false for unstarred only. */
+                starred?: boolean | null;
                 /** @description Search transcripts, with the freq:/callsign:/interesting/before:/after: grammar. */
                 q?: string | null;
                 /** @description Clips per page. */
@@ -2407,6 +2649,86 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FeedbackResource"];
+                };
+            };
+            /** @description Unknown recording. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    star_recording_recordings__recording_id__star_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                recording_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StarResponse"];
+                };
+            };
+            /** @description Unknown recording. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unstar_recording_recordings__recording_id__star_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                recording_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StarResponse"];
                 };
             };
             /** @description Unknown recording. */
@@ -2911,6 +3233,231 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SkyResponse"];
+                };
+            };
+        };
+    };
+    list_incidents_incidents_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncidentListResponse"];
+                };
+            };
+        };
+    };
+    create_incident_incidents_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IncidentCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncidentDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_incident_incidents__incident_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                incident_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncidentDetail"];
+                };
+            };
+            /** @description Unknown incident. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_incident_incidents__incident_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                incident_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown incident. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_clip_incidents__incident_id__clips_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                incident_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IncidentAddClip"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncidentDetail"];
+                };
+            };
+            /** @description Unknown incident or recording. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description The clip is already in this incident. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_clip_incidents__incident_id__clips__recording_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                incident_id: number;
+                recording_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncidentDetail"];
+                };
+            };
+            /** @description Unknown incident or membership. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
