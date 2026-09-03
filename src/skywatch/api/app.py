@@ -21,6 +21,7 @@ from sqlmodel import Session, select
 
 from skywatch.api.errors import register_error_handlers
 from skywatch.api.routes import (
+    ask,
     clips,
     content,
     digest,
@@ -253,6 +254,7 @@ def create_app(
     app.include_router(stats.router)
     app.include_router(sky.router)
     app.include_router(incidents.router)
+    app.include_router(ask.router)
 
     @app.websocket("/stream")
     async def stream(websocket: WebSocket) -> None:

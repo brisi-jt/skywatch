@@ -54,6 +54,9 @@ export type IncidentDetail = Schemas["IncidentDetail"];
 export type IncidentClipResource = Schemas["IncidentClipResource"];
 export type HealthHistoryResponse = Schemas["HealthHistoryResponse"];
 export type HeartbeatResource = Schemas["HeartbeatResource"];
+export type AskRequest = Schemas["AskRequest"];
+export type AskResponse = Schemas["AskResponse"];
+export type AskSource = Schemas["AskSource"];
 
 export function audioUrl(recordingId: number): string {
   return `${API_BASE}/recordings/${recordingId}/audio`;

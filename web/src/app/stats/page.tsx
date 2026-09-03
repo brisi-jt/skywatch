@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 
+import { AskBox } from "@/components/ask-box";
 import { FeedbackDisagreementPanel } from "@/components/feedback-disagreement-panel";
 import { NotableDaysRail } from "@/components/notable-days-rail";
 import { StatsHeatGrid } from "@/components/stats-heat-grid";
@@ -124,6 +125,8 @@ export default function StatsPage() {
           isError={feedback.isError}
         />
       </section>
+
+      <AskBox />
     </div>
   );
 }

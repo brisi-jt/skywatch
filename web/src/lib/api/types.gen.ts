@@ -677,6 +677,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ask": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask the station a question
+         * @description Answers a plain-English question about what the station has heard. The most relevant recorded clips are found by searching their transcripts and handed to the same model chain used for daily narratives and classification, so the answer is grounded in what was actually recorded rather than general knowledge; `sources` lists the clips it drew on, best match first, and is empty when nothing relevant has been recorded. Counted against the station's daily model budget and rate-limited to one question at a time. Returns 429 `ask_rate_limited` if asked again too soon, and 503 `ask_unavailable` when no classifier is configured or the budget is used up.
+         */
+        post: operations["ask_ask_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -686,7 +706,7 @@ export interface components {
          * @description Stable machine-readable error codes for problem responses.
          * @enum {string}
          */
-        APIErrorCode: "validation_error" | "not_found" | "frequency_not_found" | "recording_not_found" | "document_not_found" | "audio_deleted" | "audio_file_missing" | "window_conflict" | "capture_paused_low_disk" | "unknown_setting_key" | "invalid_setting_value" | "tuning_invalid_value" | "tuning_unknown_frequency" | "deep_tune_unavailable" | "deep_tune_active" | "deep_tune_not_active" | "recording_not_classifiable" | "incident_not_found" | "incident_clip_not_found" | "recording_already_in_incident" | "summary_rate_limited" | "summary_unavailable" | "method_not_allowed" | "internal_error";
+        APIErrorCode: "validation_error" | "not_found" | "frequency_not_found" | "recording_not_found" | "document_not_found" | "audio_deleted" | "audio_file_missing" | "window_conflict" | "capture_paused_low_disk" | "unknown_setting_key" | "invalid_setting_value" | "tuning_invalid_value" | "tuning_unknown_frequency" | "deep_tune_unavailable" | "deep_tune_active" | "deep_tune_not_active" | "recording_not_classifiable" | "incident_not_found" | "incident_clip_not_found" | "recording_already_in_incident" | "summary_rate_limited" | "summary_unavailable" | "ask_rate_limited" | "ask_unavailable" | "method_not_allowed" | "internal_error";
         /**
          * AircraftMatchResource
          * @description A probable aircraft near the station when the clip was captured.
@@ -788,6 +808,61 @@ export interface components {
             ppm: number;
             /** Squelch Overrides */
             squelch_overrides: components["schemas"]["SquelchOverride"][];
+        };
+        /**
+         * AskRequest
+         * @description A question for the station to answer from its own recorded history.
+         */
+        AskRequest: {
+            /**
+             * Question
+             * @description A plain-English question.
+             */
+            question: string;
+        };
+        /**
+         * AskResponse
+         * @description An answer grounded in the station's own recorded clips.
+         *
+         *     ``sources`` lists every clip retrieved as context for the answer, best
+         *     match first, so the dashboard can link straight to them. It is empty
+         *     when nothing relevant has been recorded, in which case the answer says
+         *     so honestly rather than guessing.
+         */
+        AskResponse: {
+            /**
+             * Links
+             * @description HAL links: self plus related resources and the actions currently available on this resource.
+             */
+            _links?: {
+                [key: string]: components["schemas"]["Link"];
+            };
+            /** Question */
+            question: string;
+            /** Answer */
+            answer: string;
+            /** Sources */
+            sources: components["schemas"]["AskSource"][];
+        };
+        /**
+         * AskSource
+         * @description One clip the answer drew on.
+         */
+        AskSource: {
+            /** Recording Id */
+            recording_id: number;
+            /** Frequency Label */
+            frequency_label: string;
+            /**
+             * Started At Utc
+             * Format: date-time
+             */
+            started_at_utc: string;
+            /**
+             * Transcript Snippet
+             * @description Opening of the clip's transcript.
+             */
+            transcript_snippet: string;
         };
         /**
          * AsrEngine
@@ -3578,6 +3653,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ask_ask_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AskRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AskResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Asked again too soon. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description No classifier available to answer. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetail"];
                 };
             };
         };

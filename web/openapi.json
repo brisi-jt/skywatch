@@ -1761,6 +1761,68 @@
           }
         }
       }
+    },
+    "/ask": {
+      "post": {
+        "tags": [
+          "ask"
+        ],
+        "summary": "Ask the station a question",
+        "description": "Answers a plain-English question about what the station has heard. The most relevant recorded clips are found by searching their transcripts and handed to the same model chain used for daily narratives and classification, so the answer is grounded in what was actually recorded rather than general knowledge; `sources` lists the clips it drew on, best match first, and is empty when nothing relevant has been recorded. Counted against the station's daily model budget and rate-limited to one question at a time. Returns 429 `ask_rate_limited` if asked again too soon, and 503 `ask_unavailable` when no classifier is configured or the budget is used up.",
+        "operationId": "ask_ask_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AskRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AskResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Asked again too soon.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No classifier available to answer.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1790,6 +1852,8 @@
           "recording_already_in_incident",
           "summary_rate_limited",
           "summary_unavailable",
+          "ask_rate_limited",
+          "ask_unavailable",
           "method_not_allowed",
           "internal_error"
         ],
@@ -2014,6 +2078,89 @@
         ],
         "title": "AppliedTuning",
         "description": "One complete set of tuning values."
+      },
+      "AskRequest": {
+        "properties": {
+          "question": {
+            "type": "string",
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Question",
+            "description": "A plain-English question."
+          }
+        },
+        "type": "object",
+        "required": [
+          "question"
+        ],
+        "title": "AskRequest",
+        "description": "A question for the station to answer from its own recorded history."
+      },
+      "AskResponse": {
+        "properties": {
+          "_links": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "type": "object",
+            "title": "Links",
+            "description": "HAL links: self plus related resources and the actions currently available on this resource."
+          },
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "answer": {
+            "type": "string",
+            "title": "Answer"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/AskSource"
+            },
+            "type": "array",
+            "title": "Sources"
+          }
+        },
+        "type": "object",
+        "required": [
+          "question",
+          "answer",
+          "sources"
+        ],
+        "title": "AskResponse",
+        "description": "An answer grounded in the station's own recorded clips.\n\n``sources`` lists every clip retrieved as context for the answer, best\nmatch first, so the dashboard can link straight to them. It is empty\nwhen nothing relevant has been recorded, in which case the answer says\nso honestly rather than guessing."
+      },
+      "AskSource": {
+        "properties": {
+          "recording_id": {
+            "type": "integer",
+            "title": "Recording Id"
+          },
+          "frequency_label": {
+            "type": "string",
+            "title": "Frequency Label"
+          },
+          "started_at_utc": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Started At Utc"
+          },
+          "transcript_snippet": {
+            "type": "string",
+            "title": "Transcript Snippet",
+            "description": "Opening of the clip's transcript."
+          }
+        },
+        "type": "object",
+        "required": [
+          "recording_id",
+          "frequency_label",
+          "started_at_utc",
+          "transcript_snippet"
+        ],
+        "title": "AskSource",
+        "description": "One clip the answer drew on."
       },
       "AsrEngine": {
         "type": "string",

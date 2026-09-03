@@ -556,3 +556,13 @@ export function useDeleteIncident() {
     },
   });
 }
+
+/** Ask the station a question, grounded in its own recorded clips. */
+export function useAsk() {
+  return useMutation({
+    mutationFn: async (question: string) => {
+      const result = await api.POST("/ask", { body: { question } });
+      return unwrap(result);
+    },
+  });
+}

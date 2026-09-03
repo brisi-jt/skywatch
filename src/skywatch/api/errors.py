@@ -50,6 +50,8 @@ class APIErrorCode(StrEnum):
     RECORDING_ALREADY_IN_INCIDENT = "recording_already_in_incident"
     SUMMARY_RATE_LIMITED = "summary_rate_limited"
     SUMMARY_UNAVAILABLE = "summary_unavailable"
+    ASK_RATE_LIMITED = "ask_rate_limited"
+    ASK_UNAVAILABLE = "ask_unavailable"
     METHOD_NOT_ALLOWED = "method_not_allowed"
     INTERNAL_ERROR = "internal_error"
 

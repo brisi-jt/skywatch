@@ -943,3 +943,35 @@ class HealthHistoryResponse(HALModel):
     since: datetime
     until: datetime
     items: list[HeartbeatResource]
+
+
+# -- ask --------------------------------------------------------------------------------
+
+
+class AskRequest(BaseModel):
+    """A question for the station to answer from its own recorded history."""
+
+    question: str = Field(min_length=1, max_length=300, description="A plain-English question.")
+
+
+class AskSource(BaseModel):
+    """One clip the answer drew on."""
+
+    recording_id: int
+    frequency_label: str
+    started_at_utc: datetime
+    transcript_snippet: str = Field(description="Opening of the clip's transcript.")
+
+
+class AskResponse(HALModel):
+    """An answer grounded in the station's own recorded clips.
+
+    ``sources`` lists every clip retrieved as context for the answer, best
+    match first, so the dashboard can link straight to them. It is empty
+    when nothing relevant has been recorded, in which case the answer says
+    so honestly rather than guessing.
+    """
+
+    question: str
+    answer: str
+    sources: list[AskSource]

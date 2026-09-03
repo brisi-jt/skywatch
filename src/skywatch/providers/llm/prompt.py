@@ -108,3 +108,34 @@ def build_narrative_prompt(
     else:
         lines.append("Nothing was flagged interesting today.")
     return "\n".join(lines)
+
+
+# -- ask ------------------------------------------------------------------------------
+
+ASK_SYSTEM_PROMPT = """\
+You answer a listener's question about what an aviation radio station near \
+London Stansted has heard, using only the numbered clips you are given as \
+evidence. The clips are automatic transcripts of noisy AM radio, so the \
+wording is approximate — never invent detail that is not in what you are \
+given, and never answer from general aviation knowledge alone. When the \
+clips do not answer the question, say so plainly rather than guessing.
+
+Write two or three plain sentences, no lists, no headings, no preamble —
+reply with the answer only."""
+
+
+def build_ask_prompt(*, question: str, clips: list[str]) -> str:
+    """Assemble the user prompt for a question: the retrieved clips, then the question.
+
+    ``clips`` is a list of already-formatted one-line clip descriptions (time,
+    frequency, transcript snippet), best match first, or empty when nothing
+    relevant was found.
+    """
+    lines: list[str] = []
+    if clips:
+        lines.append("Relevant clips, best match first:")
+        lines.extend(f"{i}. {clip}" for i, clip in enumerate(clips, start=1))
+    else:
+        lines.append("No recorded clips matched this question.")
+    lines.append(f"\nQuestion: {question}")
+    return "\n".join(lines)
