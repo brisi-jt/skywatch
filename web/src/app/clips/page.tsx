@@ -1,6 +1,6 @@
 "use client";
 
-import { HelpCircle, Play, Search, X } from "lucide-react";
+import { Check, HelpCircle, Link2, Play, Search, X } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 
@@ -24,6 +24,7 @@ import {
   buildClipFilters,
   emptyFilters,
   filtersFromSearchParams,
+  filtersToSearchParams,
   hasActiveFilters,
   type FilterState,
 } from "@/lib/clip-filters";
@@ -69,6 +70,27 @@ function ClipsView() {
   );
 
   const apiFilters = useMemo(() => buildClipFilters(filters), [filters]);
+
+  // Keep the URL a faithful copy of the filter state so the view is shareable;
+  // replaceState avoids piling up history entries as the search box is typed.
+  useEffect(() => {
+    const params = filtersToSearchParams(filters);
+    if (linkedClip) params.set("clip", linkedClip);
+    const query = params.toString();
+    window.history.replaceState(null, "", query ? `?${query}` : window.location.pathname);
+  }, [filters, linkedClip]);
+
+  const [linkCopied, setLinkCopied] = useState(false);
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch {
+      // Clipboard access can be denied (e.g. insecure origin); the link is
+      // still in the address bar to copy by hand.
+    }
+  };
 
   const { data: frequencies } = useFrequencies();
   const recordings = useRecordings(apiFilters);
@@ -308,16 +330,31 @@ function ClipsView() {
           {total != null &&
             `${total} ${total === 1 ? "clip" : "clips"}${anyActive ? " match these filters" : ""}`}
         </span>
-        {worthHearingQueue.length > 0 && (
-          <Button
-            variant="outline"
-            className="min-h-10"
-            onClick={() => player.playQueue(worthHearingQueue, worthHearingQueue[0].id)}
-          >
-            <Play className="size-4" />
-            Play all worth hearing
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" className="min-h-10" onClick={copyLink}>
+            {linkCopied ? (
+              <>
+                <Check className="size-4" />
+                Link copied
+              </>
+            ) : (
+              <>
+                <Link2 className="size-4" />
+                Copy link
+              </>
+            )}
           </Button>
-        )}
+          {worthHearingQueue.length > 0 && (
+            <Button
+              variant="outline"
+              className="min-h-10"
+              onClick={() => player.playQueue(worthHearingQueue, worthHearingQueue[0].id)}
+            >
+              <Play className="size-4" />
+              Play all worth hearing
+            </Button>
+          )}
+        </div>
       </div>
 
       <NewClipsPill />
