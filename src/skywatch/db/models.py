@@ -115,6 +115,8 @@ class Recording(TimestampMixin, table=True):
     )
     stage_error: str | None = None
     audio_deleted_at: datetime | None = Field(default=None, sa_type=UTCDateTime, nullable=True)
+    starred_at: datetime | None = Field(default=None, sa_type=UTCDateTime, nullable=True)
+    """When the listener starred this clip; null when it isn't starred."""
 
 
 class Transcript(TimestampMixin, table=True):
@@ -229,3 +231,26 @@ class Setting(TimestampMixin, table=True):
 
     key: str = Field(primary_key=True)
     value: str
+
+
+class Incident(TimestampMixin, table=True):
+    """A listener-curated bundle of clips that belong together."""
+
+    __tablename__ = "incidents"
+
+    id: int | None = Field(default=None, primary_key=True)
+    title: str
+
+
+class IncidentClip(TimestampMixin, table=True):
+    """One clip's ordered membership in an incident."""
+
+    __tablename__ = "incident_clips"
+    __table_args__ = (
+        UniqueConstraint("incident_id", "recording_id", name="uq_incident_clips_incident_recording"),
+    )
+
+    id: int | None = Field(default=None, primary_key=True)
+    incident_id: int = Field(foreign_key="incidents.id", index=True)
+    recording_id: int = Field(foreign_key="recordings.id", index=True)
+    position: int = Field(description="Playback order within the incident, 0-based.")

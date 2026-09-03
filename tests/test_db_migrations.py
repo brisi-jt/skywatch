@@ -22,11 +22,17 @@ EXPECTED_TABLES = {
     "feedback",
     "api_usage",
     "settings",
+    "incidents",
+    "incident_clips",
 }
 
 # The revision that shipped before the U3 additive migrations, used to prove
 # they apply cleanly on top of a database that already holds rows.
 PRE_U3_REVISION = "4f41a40b5f5d"
+
+# The revision that shipped before the U6a additive migrations (stars,
+# incidents), used to prove they apply cleanly on top of a populated database.
+PRE_U6A_REVISION = "d3f8a1c2b4e6"
 
 
 def _alembic_config(db_path: Path) -> Config:
@@ -167,3 +173,49 @@ def test_fts_index_backfills_and_syncs_on_populated_database(tmp_path):
             "SELECT rowid FROM transcripts_fts WHERE transcripts_fts MATCH 'stansted'"
         ).fetchall()
         assert [row[0] for row in hit] == [2]
+
+
+def test_u6a_migrations_apply_on_populated_database(tmp_path):
+    """The starred_at column and incident tables apply on top of existing rows."""
+    db_path = tmp_path / "populated.db"
+    cfg = _alembic_config(db_path)
+    command.upgrade(cfg, PRE_U6A_REVISION)
+
+    engine = create_engine(f"sqlite:///{db_path}")
+    with engine.begin() as conn:
+        conn.exec_driver_sql(
+            "INSERT INTO frequencies "
+            "(created_at, updated_at, label, mhz, mode, facility, category, "
+            " description, is_active, tuner_group, verified) "
+            "VALUES ('2026-01-01', '2026-01-01', 'Tower', 123.8, 'am', 'X', "
+            "'tower', '', 1, 1, 0)"
+        )
+        conn.exec_driver_sql(
+            "INSERT INTO recordings "
+            "(created_at, updated_at, freq_id, started_at_utc, ended_at_utc, "
+            " duration_s, file_path, sample_rate, stage) "
+            "VALUES ('2026-01-01', '2026-01-01', 1, '2026-01-01', '2026-01-01', "
+            "6.0, 'a.mp3', 8000, 'classified')"
+        )
+
+    command.upgrade(cfg, "head")
+
+    inspector = inspect(engine)
+    assert set(inspector.get_table_names()) >= EXPECTED_TABLES
+    with engine.connect() as conn:
+        # The existing row survives, and the new column defaults to null.
+        row = conn.exec_driver_sql("SELECT starred_at FROM recordings WHERE id = 1").fetchone()
+        assert row[0] is None
+
+    with engine.begin() as conn:
+        conn.exec_driver_sql(
+            "INSERT INTO incidents (created_at, updated_at, title) "
+            "VALUES ('2026-01-02', '2026-01-02', 'Go-around sequence')"
+        )
+        conn.exec_driver_sql(
+            "INSERT INTO incident_clips "
+            "(created_at, updated_at, incident_id, recording_id, position) "
+            "VALUES ('2026-01-02', '2026-01-02', 1, 1, 0)"
+        )
+    with engine.connect() as conn:
+        assert conn.exec_driver_sql("SELECT COUNT(*) FROM incident_clips").scalar() == 1

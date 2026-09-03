@@ -25,6 +25,8 @@ from skywatch.db.models import (
     Classification,
     Feedback,
     Frequency,
+    Incident,
+    IncidentClip,
     Recording,
     Setting,
     Transcript,
@@ -402,3 +404,71 @@ def test_setting_round_trip(engine):
     assert row.value == "Dad's Tower"
     _assert_utc(row.created_at, T0)
     _assert_utc(row.updated_at, T1)
+
+
+def test_recording_starred_at_defaults_to_none(engine):
+    pk = _seed_recording(engine)
+    row = _reload(engine, Recording, pk)
+    assert row.starred_at is None
+
+
+def test_recording_starred_at_round_trip(engine):
+    freq_id = _persist(engine, _frequency())
+    pk = _persist(engine, _recording(freq_id, starred_at=T1))
+    row = _reload(engine, Recording, pk)
+    _assert_utc(row.starred_at, T1)
+
+
+def test_incident_round_trip(engine):
+    pk = _persist(
+        engine,
+        Incident(title="Go-around sequence, 09:30", created_at=T0, updated_at=T1),
+    )
+    row = _reload(engine, Incident, pk)
+
+    assert row.id == pk
+    assert row.title == "Go-around sequence, 09:30"
+    _assert_utc(row.created_at, T0)
+    _assert_utc(row.updated_at, T1)
+
+
+def test_incident_clip_round_trip(engine):
+    recording_id = _seed_recording(engine)
+    incident_id = _persist(engine, Incident(title="Sequence"))
+    pk = _persist(
+        engine,
+        IncidentClip(
+            incident_id=incident_id,
+            recording_id=recording_id,
+            position=0,
+            created_at=T0,
+            updated_at=T1,
+        ),
+    )
+    row = _reload(engine, IncidentClip, pk)
+
+    assert row.id == pk
+    assert row.incident_id == incident_id
+    assert row.recording_id == recording_id
+    assert isinstance(row.position, int)
+    assert row.position == 0
+    _assert_utc(row.created_at, T0)
+    _assert_utc(row.updated_at, T1)
+
+
+def test_incident_clip_requires_existing_incident_and_recording(engine):
+    recording_id = _seed_recording(engine)
+    with pytest.raises(IntegrityError), Session(engine) as s:
+        s.add(IncidentClip(incident_id=999, recording_id=recording_id, position=0))
+        s.commit()
+
+
+def test_incident_clip_membership_is_unique(engine):
+    recording_id = _seed_recording(engine)
+    incident_id = _persist(engine, Incident(title="Sequence"))
+    _persist(
+        engine, IncidentClip(incident_id=incident_id, recording_id=recording_id, position=0)
+    )
+    with pytest.raises(IntegrityError), Session(engine) as s:
+        s.add(IncidentClip(incident_id=incident_id, recording_id=recording_id, position=1))
+        s.commit()

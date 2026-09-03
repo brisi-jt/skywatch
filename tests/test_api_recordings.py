@@ -34,6 +34,7 @@ class TestListRecordings:
         assert first["top_match"]["callsign"] == "BAW2761"
         assert first["feedback"] == {"up": 1, "down": 0}
         assert first["audio_available"] is True
+        assert first["starred_at"] is None
         assert first["_links"]["self"]["href"] == f"/recordings/{newer.id}"
         assert first["_links"]["audio"]["href"] == f"/recordings/{newer.id}/audio"
         # a clip with nothing attached yet is still a complete summary
@@ -72,6 +73,12 @@ class TestListRecordings:
             "/recordings", params={"from_date": "2026-07-11", "to_date": "2026-07-12"}
         ).json()
         assert [i["id"] for i in dated["items"]] == [exciting.id]
+
+        client.post(f"/recordings/{exciting.id}/star")
+        starred = client.get("/recordings", params={"starred": "true"}).json()
+        assert [i["id"] for i in starred["items"]] == [exciting.id]
+        not_starred = client.get("/recordings", params={"starred": "false"}).json()
+        assert [i["id"] for i in not_starred["items"]] == [routine.id]
 
     def test_reclassification_history_uses_latest_verdict(self, client, seed):
         freq = seed.frequency()
@@ -263,3 +270,44 @@ class TestFeedback:
     def test_unknown_recording_is_404(self, client):
         response = client.post("/recordings/999/feedback", json={"verdict": "up"})
         assert response.status_code == 404
+
+
+class TestStars:
+    def test_star_and_unstar_round_trip(self, client, seed):
+        freq = seed.frequency()
+        rec = seed.recording(freq)
+
+        starred = client.post(f"/recordings/{rec.id}/star")
+        assert starred.status_code == 200
+        body = starred.json()
+        assert body["recording_id"] == rec.id
+        assert body["starred_at"] is not None
+        assert body["_links"]["recording"]["href"] == f"/recordings/{rec.id}"
+        assert client.get(f"/recordings/{rec.id}").json()["starred_at"] is not None
+
+        unstarred = client.delete(f"/recordings/{rec.id}/star")
+        assert unstarred.status_code == 200
+        assert unstarred.json()["starred_at"] is None
+        assert client.get(f"/recordings/{rec.id}").json()["starred_at"] is None
+
+    def test_starring_twice_is_idempotent(self, client, seed):
+        freq = seed.frequency()
+        rec = seed.recording(freq)
+
+        first = client.post(f"/recordings/{rec.id}/star").json()["starred_at"]
+        second = client.post(f"/recordings/{rec.id}/star").json()["starred_at"]
+        assert first == second
+
+    def test_unstarring_a_never_starred_clip_is_a_no_op(self, client, seed):
+        freq = seed.frequency()
+        rec = seed.recording(freq)
+
+        response = client.delete(f"/recordings/{rec.id}/star")
+        assert response.status_code == 200
+        assert response.json()["starred_at"] is None
+
+    def test_star_unknown_recording_is_404(self, client):
+        assert client.post("/recordings/999/star").status_code == 404
+
+    def test_unstar_unknown_recording_is_404(self, client):
+        assert client.delete("/recordings/999/star").status_code == 404

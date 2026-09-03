@@ -78,3 +78,23 @@ class TestDigest:
         response = client.get("/digest", params={"date": "not-a-date"})
         assert response.status_code == 422
         assert response.json()["code"] == "validation_error"
+
+    def test_greatest_hits_weights_starred_clips(self, client, seed):
+        freq = seed.frequency()
+        two_ups = seed.recording(freq, started=datetime(2026, 3, 1, 12, 0, tzinfo=UTC))
+        seed.feedback(two_ups, FeedbackVerdict.UP)
+        seed.feedback(two_ups, FeedbackVerdict.UP)
+
+        starred_no_votes = seed.recording(freq, started=datetime(2026, 3, 2, 12, 0, tzinfo=UTC))
+        client.post(f"/recordings/{starred_no_votes.id}/star")
+
+        starred_and_voted = seed.recording(freq, started=datetime(2026, 3, 3, 12, 0, tzinfo=UTC))
+        seed.feedback(starred_and_voted, FeedbackVerdict.UP)
+        client.post(f"/recordings/{starred_and_voted.id}/star")
+
+        body = client.get("/digest", params={"date": "2000-01-01"}).json()
+        ids = [item["id"] for item in body["greatest_hits"]]
+
+        # starred_and_voted (3 pts) beats the tie between two_ups and
+        # starred_no_votes (2 pts each), which breaks toward the newer clip.
+        assert ids == [starred_and_voted.id, starred_no_votes.id, two_ups.id]

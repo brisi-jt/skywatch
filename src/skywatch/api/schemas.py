@@ -250,6 +250,9 @@ class RecordingSummary(HALModel):
         description="Most plausible aircraft candidate, or null when none was found."
     )
     feedback: FeedbackCounts
+    starred_at: datetime | None = Field(
+        description="When the listener starred this clip, or null when it isn't starred."
+    )
 
 
 class RecordingDetail(RecordingSummary):
@@ -302,6 +305,61 @@ class FeedbackCreate(BaseModel):
 
     verdict: FeedbackVerdict
     note: str | None = None
+
+
+class StarResponse(HALModel):
+    """A clip's star state after a star or unstar request."""
+
+    recording_id: int
+    starred_at: datetime | None = Field(
+        description="When the clip was starred, or null when it isn't starred."
+    )
+
+
+# -- incidents ------------------------------------------------------------------------
+
+
+class IncidentClipResource(BaseModel):
+    """One clip's place in an incident's ordered playback."""
+
+    position: int
+    recording: RecordingSummary
+
+
+class IncidentSummary(HALModel):
+    """An incident as it appears in the list view."""
+
+    id: int
+    title: str
+    clip_count: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class IncidentListResponse(HALModel):
+    items: list[IncidentSummary] = Field(description="Newest incidents first.")
+
+
+class IncidentDetail(HALModel):
+    """An incident with its clips in playback order."""
+
+    id: int
+    title: str
+    created_at: datetime
+    updated_at: datetime
+    clips: list[IncidentClipResource] = Field(description="Ordered by position, ascending.")
+
+
+class IncidentCreate(BaseModel):
+    """Request body for grouping clips into a new incident."""
+
+    title: str = Field(min_length=1, max_length=200)
+
+
+class IncidentAddClip(BaseModel):
+    """Request body for appending a clip to an incident."""
+
+    recording_id: int
 
 
 # -- status -------------------------------------------------------------------------
