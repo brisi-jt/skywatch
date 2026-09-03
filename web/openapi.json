@@ -3373,6 +3373,30 @@
             "type": "number",
             "title": "Radius Nm"
           },
+          "station_lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Station Lat",
+            "description": "The receiver's latitude, for centring the map and its range rings; null until the station has been geocoded."
+          },
+          "station_lon": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Station Lon",
+            "description": "The receiver's longitude."
+          },
           "generated_at": {
             "type": "string",
             "format": "date-time",

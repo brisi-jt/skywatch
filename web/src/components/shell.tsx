@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 
 const TABS = [
   { href: "/", label: "Today" },
+  { href: "/sky/", label: "Sky" },
   { href: "/clips/", label: "Clips" },
   { href: "/station/", label: "Station" },
   { href: "/runbook/", label: "Runbook" },

@@ -1,4 +1,5 @@
-import { BadgeCheck, Star } from "lucide-react";
+import { BadgeCheck, Plane, Star } from "lucide-react";
+import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import type { AircraftMatchResource } from "@/lib/api/client";
@@ -57,6 +58,20 @@ export function AircraftAlertBadge({ category }: { category: string }) {
       <Star className="size-3.5" aria-hidden />
       {category}
     </Badge>
+  );
+}
+
+/** Links a clip's matched aircraft to its live position on the Sky view —
+ * the fusion chip's clip-card-to-map direction. */
+export function OverheadNowChip({ hex }: { hex: string }) {
+  return (
+    <Link
+      href={`/sky/?hex=${hex}`}
+      className="inline-flex min-h-8 items-center gap-1.5 rounded-full bg-interesting-surface px-3 text-sm text-interesting-surface-foreground transition-colors hover:opacity-80"
+    >
+      <Plane className="size-3.5" aria-hidden />
+      Overhead now
+    </Link>
   );
 }
 

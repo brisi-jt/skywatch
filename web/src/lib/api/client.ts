@@ -44,6 +44,9 @@ export type NotableDay = Schemas["NotableDay"];
 export type NotableDaysResponse = Schemas["NotableDaysResponse"];
 export type EvalFeedbackResponse = Schemas["EvalFeedbackResponse"];
 export type EvalDisagreement = Schemas["EvalDisagreement"];
+export type SkyResponse = Schemas["SkyResponse"];
+export type SkyAircraftResource = Schemas["SkyAircraftResource"];
+export type SkySource = Schemas["SkySource"];
 
 export function audioUrl(recordingId: number): string {
   return `${API_BASE}/recordings/${recordingId}/audio`;

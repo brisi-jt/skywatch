@@ -7,6 +7,8 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 
+import { useIsVisible } from "@/lib/use-visibility";
+
 import {
   api,
   asProblem,
@@ -380,6 +382,42 @@ export function useStopDeepTune() {
       queryClient.invalidateQueries({ queryKey: ["status"] });
       queryClient.invalidateQueries({ queryKey: ["tuning-meters"] });
     },
+  });
+}
+
+// -- sky ------------------------------------------------------------------------------
+
+async function fetchSky() {
+  const result = await api.GET("/sky");
+  return unwrap(result);
+}
+
+/**
+ * Live positions within the station's radius. Polls every 10 s while the Sky
+ * view is mounted, pausing whenever the tab is backgrounded (Page Visibility
+ * API) — leaving the view stops the query entirely once it unmounts.
+ */
+export function useSky() {
+  const visible = useIsVisible();
+  return useQuery({
+    queryKey: ["sky"],
+    queryFn: fetchSky,
+    refetchInterval: visible ? 10_000 : false,
+  });
+}
+
+/**
+ * Read-only access to whatever the Sky view last fetched, for the "overhead
+ * now" chip on clip cards elsewhere. Never fetches on its own: a station that
+ * hasn't opened Sky yet this session simply has no live picture to compare a
+ * clip's matched aircraft against.
+ */
+export function useSkySnapshot() {
+  return useQuery({
+    queryKey: ["sky"],
+    queryFn: fetchSky,
+    enabled: false,
+    staleTime: Infinity,
   });
 }
 

@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   AircraftAlertBadge,
   InterestingBadge,
+  OverheadNowChip,
   RoughTranscriptBadge,
   RoutineBadge,
   TierChip,
@@ -17,10 +18,16 @@ import type {
   RecordingDetail,
   RecordingSummary,
 } from "@/lib/api/client";
-import { useFeedback, useReclassify, useRecordingDetail } from "@/lib/api/hooks";
+import {
+  useFeedback,
+  useReclassify,
+  useRecordingDetail,
+  useSkySnapshot,
+} from "@/lib/api/hooks";
 import { toPlayerClip } from "@/lib/clip";
 import { clockTime, durationLabel, freqLabel } from "@/lib/format";
 import { clipAnchorId, usePlayer, type PlayerClip } from "@/lib/player";
+import { findOverheadAircraft } from "@/lib/sky";
 import { isRoughTranscript, stageWord } from "@/lib/tiers";
 import {
   activeSegmentIndex,
@@ -67,6 +74,8 @@ export function ClipCard({
   const reducedMotion = useReducedMotion();
   const ref = useRef<HTMLElement>(null);
   const detail = useRecordingDetail(clip.id, expanded);
+  const skySnapshot = useSkySnapshot();
+  const overhead = findOverheadAircraft(clip.top_match?.icao24, skySnapshot.data?.aircraft);
 
   useEffect(() => {
     if (expanded && ref.current) {
@@ -179,6 +188,7 @@ export function ClipCard({
               {clip.top_match.alert_category && (
                 <AircraftAlertBadge category={clip.top_match.alert_category} />
               )}
+              {overhead && <OverheadNowChip hex={overhead.hex} />}
             </div>
           )}
         </div>

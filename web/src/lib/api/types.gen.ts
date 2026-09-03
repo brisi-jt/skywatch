@@ -528,6 +528,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/sky": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What's overhead right now
+         * @description Live aircraft positions within the station's configured radius, tried against a chain of community ADS-B aggregators and falling back to OpenSky when all of them are unavailable. Each aircraft is marked `heard_recently` when its hex matches a clip captured within the station's heard window, linking the live picture to actual radio traffic. Responses are cached for a few seconds so multiple open dashboard tabs share one upstream lookup. When every source in the chain is down this still returns 200 with `source` null and an empty aircraft list — a quiet sky and a down source chain look the same on the wire except for that field.
+         */
+        get: operations["get_sky_sky_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1530,6 +1550,108 @@ export interface components {
             /** Total Clips */
             total_clips: number;
         };
+        /**
+         * SkyAircraftResource
+         * @description One live position, normalized across whichever source answered.
+         */
+        SkyAircraftResource: {
+            /**
+             * Hex
+             * @description ICAO 24-bit address, lowercase hex.
+             */
+            hex: string;
+            /** Callsign */
+            callsign?: string | null;
+            /** Lat */
+            lat?: number | null;
+            /** Lon */
+            lon?: number | null;
+            /** Alt Ft */
+            alt_ft?: number | null;
+            /**
+             * Gs Kt
+             * @description Ground speed in knots.
+             */
+            gs_kt?: number | null;
+            /**
+             * Track
+             * @description True track in degrees.
+             */
+            track?: number | null;
+            /**
+             * Type
+             * @description ICAO aircraft type designator.
+             */
+            type?: string | null;
+            /** Registration */
+            registration?: string | null;
+            /** Squawk */
+            squawk?: string | null;
+            /**
+             * Seen S
+             * @description Seconds since the source last heard this aircraft's position.
+             */
+            seen_s?: number | null;
+            /**
+             * Heard Recently
+             * @description True when a clip matched this aircraft's hex within the station's heard window — the clip↔sky fusion signal.
+             */
+            heard_recently: boolean;
+            /**
+             * Heard Recording Ids
+             * @description Recordings that matched this hex within the heard window.
+             */
+            heard_recording_ids?: number[];
+        };
+        /**
+         * SkyResponse
+         * @description Live positions within range, fused with what the station has heard.
+         *
+         *     A quiet sky and a down source chain look almost the same on the wire:
+         *     both return an empty aircraft list. The difference is which source
+         *     answered — null only when every source in the chain failed.
+         */
+        SkyResponse: {
+            /**
+             * Links
+             * @description HAL links: self plus related resources and the actions currently available on this resource.
+             */
+            _links?: {
+                [key: string]: components["schemas"]["Link"];
+            };
+            /** @description Which source answered this lookup; null when the whole chain is down. */
+            source: components["schemas"]["SkySource"] | null;
+            /**
+             * Attribution
+             * @description Credit line for the active source.
+             */
+            attribution: string | null;
+            /** Radius Nm */
+            radius_nm: number;
+            /**
+             * Station Lat
+             * @description The receiver's latitude, for centring the map and its range rings; null until the station has been geocoded.
+             */
+            station_lat?: number | null;
+            /**
+             * Station Lon
+             * @description The receiver's longitude.
+             */
+            station_lon?: number | null;
+            /**
+             * Generated At
+             * Format: date-time
+             */
+            generated_at: string;
+            /** Aircraft */
+            aircraft: components["schemas"]["SkyAircraftResource"][];
+        };
+        /**
+         * SkySource
+         * @description Which chain leg answered a /sky lookup.
+         * @enum {string}
+         */
+        SkySource: "airplanes_live" | "adsb_lol" | "adsb_fi" | "opensky";
         /**
          * SquelchOverride
          * @description A per-frequency squelch threshold that beats the station default.
@@ -2769,6 +2891,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StatsResponse"];
+                };
+            };
+        };
+    };
+    get_sky_sky_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkyResponse"];
                 };
             };
         };

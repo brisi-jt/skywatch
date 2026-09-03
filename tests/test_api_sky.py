@@ -153,6 +153,8 @@ class TestSkyRoute:
         assert body["source"] == "airplanes_live"
         assert body["attribution"]
         assert body["radius_nm"] == 25
+        assert body["station_lat"] == RECEIVER_LAT
+        assert body["station_lon"] == RECEIVER_LON
         assert len(body["aircraft"]) == 1
         aircraft = body["aircraft"][0]
         assert aircraft["hex"] == "aaaaaa"
@@ -205,7 +207,10 @@ class TestSkyRoute:
         with TestClient(app) as c:
             response = c.get("/sky")
         assert response.status_code == 200
-        assert response.json()["source"] is None
+        body = response.json()
+        assert body["source"] is None
+        assert body["station_lat"] is None
+        assert body["station_lon"] is None
 
     @respx.mock
     def test_cache_collapses_rapid_calls(self, sky_client):

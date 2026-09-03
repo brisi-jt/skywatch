@@ -120,6 +120,8 @@ def build_sky_response(
         source=result.source,
         attribution=result.attribution,
         radius_nm=settings.sky.radius_nm,
+        station_lat=settings.receiver.lat,
+        station_lon=settings.receiver.lon,
         generated_at=utcnow(),
         aircraft=aircraft,
         links={"self": Link(href="/sky")},

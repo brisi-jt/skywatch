@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "leaflet/dist/leaflet.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -70,6 +71,14 @@
   --scope-trace-fill: oklch(0.3 0.045 145 / 0.1);
   --scope-grid: oklch(0.85 0.02 95);
   --scope-grid-label: oklch(0.55 0.02 90);
+
+  /* Sky view: an instrument overlay on a real basemap, aliasing the scope
+   * palette so it reads as the same flight-deck family in both themes. */
+  --sky-ring: var(--scope-grid);
+  --sky-ring-label: var(--scope-grid-label);
+  --sky-glyph: var(--scope-trace);
+  --sky-glyph-heard: var(--interesting);
+  --sky-station: var(--primary);
 
   --radius: 0.5rem;
 }
@@ -172,6 +181,11 @@
   --color-threshold: var(--threshold);
   --color-lamp-off: var(--lamp-off);
   --color-lamp-on: var(--lamp-on);
+  --color-sky-ring: var(--sky-ring);
+  --color-sky-ring-label: var(--sky-ring-label);
+  --color-sky-glyph: var(--sky-glyph);
+  --color-sky-glyph-heard: var(--sky-glyph-heard);
+  --color-sky-station: var(--sky-station);
 
   --font-sans: var(--font-body), ui-sans-serif, system-ui, sans-serif;
   --font-display: var(--font-display), ui-sans-serif, system-ui, sans-serif;
@@ -537,4 +551,93 @@
   box-shadow:
     inset 0 3px 10px oklch(0 0 0 / 0.7),
     inset 0 -1px 0 oklch(1 0 0 / 0.04);
+}
+
+/*
+ * Sky view: a real OSM basemap dressed as an instrument. Light keeps the
+ * tiles as-is (a warm paper chart); dark darkens them with a filter on the
+ * tile pane alone, so the phosphor rings and aircraft glyphs drawn over the
+ * top stay their own true colours instead of being inverted along with the
+ * map.
+ */
+.sky-map {
+  height: 100%;
+  width: 100%;
+  background: var(--scope-screen);
+  font-family: var(--font-sans);
+  /* Leaflet's internal panes use z-index up to 700 (marker/tooltip/popup),
+   * which would otherwise escape into the page's stacking order and sit
+   * on top of dialogs and dropdowns (z-50) anywhere the map is mounted.
+   * Isolating confines all of that to within the map itself. */
+  isolation: isolate;
+}
+.dark .sky-map .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9) saturate(0.6);
+}
+.sky-map .leaflet-control-attribution {
+  background: color-mix(in oklch, var(--card) 85%, transparent);
+  color: var(--muted-foreground);
+}
+.sky-map .leaflet-control-zoom a {
+  background: var(--card);
+  color: var(--foreground);
+  border-color: var(--border) !important;
+}
+
+/* Range rings: dashed instrument grid circles, unfilled. */
+.sky-map .sky-ring {
+  stroke: var(--sky-ring);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+  fill: none;
+}
+
+/* The station itself: a small solid dot at the map's centre. */
+.sky-station-glyph {
+  color: var(--sky-station);
+}
+
+/* One rotated triangle per aircraft, with a mono callsign/alt/type label
+ * beneath. Heard-recently aircraft take the accent colour; everyone else
+ * reads in the scope-trace phosphor tone. */
+.sky-aircraft-glyph {
+  color: var(--sky-glyph);
+}
+.sky-aircraft-glyph[data-heard="true"] {
+  color: var(--sky-glyph-heard);
+}
+.sky-aircraft-label {
+  font-family: var(--font-readout), ui-monospace, monospace;
+  background: color-mix(in oklch, var(--background) 70%, transparent);
+}
+
+/* A one-shot "heard just now" pulse on a matched hex when a recording.new
+ * event lands while Sky is open — never a loop, latched via `both`. */
+@keyframes sky-heard-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  70% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+.sky-heard-pulse::after {
+  content: "";
+  position: absolute;
+  inset: -0.6rem;
+  border-radius: 9999px;
+  border: 2px solid var(--sky-glyph-heard);
+  animation: sky-heard-pulse 1.4s ease-out 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sky-heard-pulse::after {
+    animation: none;
+    display: none;
+  }
 }

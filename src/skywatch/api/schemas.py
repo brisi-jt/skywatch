@@ -587,6 +587,12 @@ class SkyResponse(HALModel):
     )
     attribution: str | None = Field(description="Credit line for the active source.")
     radius_nm: float
+    station_lat: float | None = Field(
+        default=None,
+        description="The receiver's latitude, for centring the map and its range rings; "
+        "null until the station has been geocoded.",
+    )
+    station_lon: float | None = Field(default=None, description="The receiver's longitude.")
     generated_at: datetime
     aircraft: list[SkyAircraftResource]
 
