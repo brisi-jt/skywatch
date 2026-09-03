@@ -92,6 +92,7 @@ export interface ClipFilters {
   interesting?: true;
   category?: string;
   has_match?: true;
+  q?: string;
 }
 
 const PAGE_SIZE = 20;

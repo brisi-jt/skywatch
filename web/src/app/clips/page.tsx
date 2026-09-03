@@ -1,14 +1,15 @@
 "use client";
 
-import { Play, X } from "lucide-react";
+import { HelpCircle, Play, Search, X } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 
 import { ClipCard, ClipCardSkeleton } from "@/components/clip-card";
 import { NewClipsPill } from "@/components/new-clips-pill";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -17,8 +18,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { useFrequencies, useRecordingDetail, useRecordings, type ClipFilters } from "@/lib/api/hooks";
+import { useFrequencies, useRecordingDetail, useRecordings } from "@/lib/api/hooks";
 import { playableQueue } from "@/lib/clip";
+import {
+  buildClipFilters,
+  emptyFilters,
+  filtersFromSearchParams,
+  hasActiveFilters,
+  type FilterState,
+} from "@/lib/clip-filters";
 import { freqLabel } from "@/lib/format";
 import { usePlayer } from "@/lib/player";
 import { categoryWord } from "@/lib/tiers";
@@ -37,6 +45,8 @@ const CATEGORIES = [
   "routine",
 ];
 
+const SEARCH_PLACEHOLDER = 'Search transcripts — mayday, "go around", freq:121.5…';
+
 export default function ClipsPage() {
   return (
     <Suspense>
@@ -48,29 +58,20 @@ export default function ClipsPage() {
 function ClipsView() {
   const params = useSearchParams();
   const linkedClip = params.get("clip");
-  const linkedDate = params.get("date");
 
-  const [fromDate, setFromDate] = useState(linkedDate ?? "");
-  const [toDate, setToDate] = useState(linkedDate ?? "");
-  const [freqId, setFreqId] = useState<string>("all");
-  const [interestingOnly, setInterestingOnly] = useState(false);
-  const [category, setCategory] = useState<string>("all");
-  const [hasAircraft, setHasAircraft] = useState(false);
+  const [filters, setFilters] = useState<FilterState>(() =>
+    filtersFromSearchParams(new URLSearchParams(params.toString())),
+  );
+  const update = (patch: Partial<FilterState>) => setFilters((f) => ({ ...f, ...patch }));
+
   const [expandedId, setExpandedId] = useState<number | null>(
     linkedClip ? Number(linkedClip) : null,
   );
 
-  const filters: ClipFilters = {
-    ...(fromDate && { from_date: fromDate }),
-    ...(toDate && { to_date: toDate }),
-    ...(freqId !== "all" && { freq_id: Number(freqId) }),
-    ...(interestingOnly && { interesting: true as const }),
-    ...(category !== "all" && { category }),
-    ...(hasAircraft && { has_match: true as const }),
-  };
+  const apiFilters = useMemo(() => buildClipFilters(filters), [filters]);
 
   const { data: frequencies } = useFrequencies();
-  const recordings = useRecordings(filters);
+  const recordings = useRecordings(apiFilters);
   const player = usePlayer();
   const { pendingNewClips, onNewRecording } = useWs();
 
@@ -103,35 +104,49 @@ function ClipsView() {
     items.filter((clip) => clip.classification?.is_interesting),
   );
 
-  const selectedFreq = frequencies?.items.find((f) => String(f.id) === freqId);
+  const selectedFreq = frequencies?.items.find((f) => String(f.id) === filters.freqId);
   const activeFilters: { key: string; label: string; clear: () => void }[] = [];
-  if (fromDate) activeFilters.push({ key: "from", label: `From ${fromDate}`, clear: () => setFromDate("") });
-  if (toDate) activeFilters.push({ key: "to", label: `To ${toDate}`, clear: () => setToDate("") });
-  if (freqId !== "all")
+  if (filters.q.trim())
+    activeFilters.push({ key: "q", label: `“${filters.q.trim()}”`, clear: () => update({ q: "" }) });
+  if (filters.fromDate)
+    activeFilters.push({
+      key: "from",
+      label: `From ${filters.fromDate}`,
+      clear: () => update({ fromDate: "" }),
+    });
+  if (filters.toDate)
+    activeFilters.push({
+      key: "to",
+      label: `To ${filters.toDate}`,
+      clear: () => update({ toDate: "" }),
+    });
+  if (filters.freqId !== "all")
     activeFilters.push({
       key: "freq",
       label: selectedFreq ? freqLabel(selectedFreq.mhz, selectedFreq.label) : "Frequency",
-      clear: () => setFreqId("all"),
+      clear: () => update({ freqId: "all" }),
     });
-  if (category !== "all")
-    activeFilters.push({ key: "cat", label: categoryWord(category), clear: () => setCategory("all") });
-  if (interestingOnly)
+  if (filters.category !== "all")
+    activeFilters.push({
+      key: "cat",
+      label: categoryWord(filters.category),
+      clear: () => update({ category: "all" }),
+    });
+  if (filters.interestingOnly)
     activeFilters.push({
       key: "interesting",
       label: "Worth hearing only",
-      clear: () => setInterestingOnly(false),
+      clear: () => update({ interestingOnly: false }),
     });
-  if (hasAircraft)
-    activeFilters.push({ key: "aircraft", label: "Has aircraft", clear: () => setHasAircraft(false) });
+  if (filters.hasAircraft)
+    activeFilters.push({
+      key: "aircraft",
+      label: "Has aircraft",
+      clear: () => update({ hasAircraft: false }),
+    });
 
-  const clearAllFilters = () => {
-    setFromDate("");
-    setToDate("");
-    setFreqId("all");
-    setCategory("all");
-    setInterestingOnly(false);
-    setHasAircraft(false);
-  };
+  const clearAllFilters = () => setFilters(emptyFilters);
+  const anyActive = hasActiveFilters(filters);
 
   // A deep-linked clip that isn't in the visible pages still gets shown.
   const linkedId = linkedClip ? Number(linkedClip) : null;
@@ -150,75 +165,121 @@ function ClipsView() {
 
       <section
         aria-label="Filters"
-        className="flex flex-wrap items-end gap-x-5 gap-y-3 rounded-xl border bg-card px-4 py-4"
+        className="flex flex-col gap-4 rounded-xl border bg-card px-4 py-4"
       >
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="from-date" className="text-sm">
-            From
-          </Label>
-          <Input
-            id="from-date"
-            type="date"
-            value={fromDate}
-            onChange={(e) => setFromDate(e.target.value)}
-            className="h-10 w-40 text-base"
-          />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="to-date" className="text-sm">
-            To
-          </Label>
-          <Input
-            id="to-date"
-            type="date"
-            value={toDate}
-            onChange={(e) => setToDate(e.target.value)}
-            className="h-10 w-40 text-base"
-          />
-        </div>
-
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-sm">Frequency</Label>
-          <Select value={freqId} onValueChange={setFreqId}>
-            <SelectTrigger className="h-10 w-56 text-base">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All frequencies</SelectItem>
-              {frequencies?.items.map((freq) => (
-                <SelectItem key={freq.id} value={String(freq.id)}>
-                  {freqLabel(freq.mhz, freq.label)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="flex items-end gap-2">
+          <div className="flex flex-1 flex-col gap-1.5">
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="clip-search" className="text-sm">
+                Search
+              </Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className="text-muted-foreground transition-colors hover:text-foreground"
+                    aria-label="How search works"
+                  >
+                    <HelpCircle className="size-4" aria-hidden />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="text-sm">
+                  <SearchHelp />
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div className="relative">
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                aria-hidden
+              />
+              <Input
+                id="clip-search"
+                type="search"
+                value={filters.q}
+                onChange={(e) => update({ q: e.target.value })}
+                placeholder={SEARCH_PLACEHOLDER}
+                className="h-10 pl-9 text-base"
+              />
+            </div>
+          </div>
         </div>
 
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-sm">Category</Label>
-          <Select value={category} onValueChange={setCategory}>
-            <SelectTrigger className="h-10 w-44 text-base">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All categories</SelectItem>
-              {CATEGORIES.map((cat) => (
-                <SelectItem key={cat} value={cat}>
-                  {categoryWord(cat)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="from-date" className="text-sm">
+              From
+            </Label>
+            <Input
+              id="from-date"
+              type="date"
+              value={filters.fromDate}
+              onChange={(e) => update({ fromDate: e.target.value })}
+              className="h-10 w-40 text-base"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="to-date" className="text-sm">
+              To
+            </Label>
+            <Input
+              id="to-date"
+              type="date"
+              value={filters.toDate}
+              onChange={(e) => update({ toDate: e.target.value })}
+              className="h-10 w-40 text-base"
+            />
+          </div>
 
-        <label className="flex min-h-10 items-center gap-2 text-base">
-          <Switch checked={interestingOnly} onCheckedChange={setInterestingOnly} />
-          Worth hearing only
-        </label>
-        <label className="flex min-h-10 items-center gap-2 text-base">
-          <Switch checked={hasAircraft} onCheckedChange={setHasAircraft} />
-          Has aircraft
-        </label>
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-sm">Frequency</Label>
+            <Select value={filters.freqId} onValueChange={(v) => update({ freqId: v })}>
+              <SelectTrigger className="h-10 w-56 text-base">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All frequencies</SelectItem>
+                {frequencies?.items.map((freq) => (
+                  <SelectItem key={freq.id} value={String(freq.id)}>
+                    {freqLabel(freq.mhz, freq.label)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-sm">Category</Label>
+            <Select value={filters.category} onValueChange={(v) => update({ category: v })}>
+              <SelectTrigger className="h-10 w-44 text-base">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All categories</SelectItem>
+                {CATEGORIES.map((cat) => (
+                  <SelectItem key={cat} value={cat}>
+                    {categoryWord(cat)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <label className="flex min-h-10 items-center gap-2 text-base">
+            <Switch
+              checked={filters.interestingOnly}
+              onCheckedChange={(v) => update({ interestingOnly: v })}
+            />
+            Worth hearing only
+          </label>
+          <label className="flex min-h-10 items-center gap-2 text-base">
+            <Switch
+              checked={filters.hasAircraft}
+              onCheckedChange={(v) => update({ hasAircraft: v })}
+            />
+            Has aircraft
+          </label>
+        </div>
       </section>
 
       {activeFilters.length > 0 && (
@@ -243,9 +304,9 @@ function ClipsView() {
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-sm text-muted-foreground">
+        <span className="text-sm text-muted-foreground" aria-live="polite">
           {total != null &&
-            `${total} ${total === 1 ? "clip" : "clips"}${activeFilters.length > 0 ? " match these filters" : ""}`}
+            `${total} ${total === 1 ? "clip" : "clips"}${anyActive ? " match these filters" : ""}`}
         </span>
         {worthHearingQueue.length > 0 && (
           <Button
@@ -279,9 +340,11 @@ function ClipsView() {
 
       {recordings.data && items.length === 0 && (
         <div className="rounded-xl border bg-card px-6 py-10 text-center">
-          <p className="text-lg">Nothing matches these filters.</p>
+          <p className="text-lg">No clips match.</p>
           <p className="mt-2 text-base text-muted-foreground">
-            Widen the dates or switch off a filter to see more of the archive.
+            {filters.q.trim()
+              ? "Try fewer words, or drop a freq:/callsign: token from your search."
+              : "Widen the dates or switch off a filter to see more of the archive."}
           </p>
         </div>
       )}
@@ -320,6 +383,34 @@ function ClipsView() {
   );
 }
 
+function SearchHelp() {
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="font-medium">Searching clips</p>
+      <p className="text-muted-foreground">
+        Type words to search the transcripts. Wrap a phrase in quotes to keep it together. Add any of
+        these to narrow the results:
+      </p>
+      <ul className="flex flex-col gap-1 text-muted-foreground">
+        <li>
+          <code className="text-foreground">freq:121.5</code> or{" "}
+          <code className="text-foreground">freq:tower</code> — one frequency
+        </li>
+        <li>
+          <code className="text-foreground">callsign:BAW2761</code> — a matched aircraft
+        </li>
+        <li>
+          <code className="text-foreground">interesting</code> — worth-hearing clips only
+        </li>
+        <li>
+          <code className="text-foreground">after:2026-07-01</code>,{" "}
+          <code className="text-foreground">before:2026-07-10</code> — a date range
+        </li>
+      </ul>
+    </div>
+  );
+}
+
 /** Deep-linked clip rendered above the list when it's outside the loaded pages. */
 function LinkedClip({ id }: { id: number }) {
   const { data, isError } = useRecordingDetail(id, true);
@@ -341,11 +432,7 @@ function LinkedClip({ id }: { id: number }) {
   return (
     <div className="flex flex-col gap-2">
       <p className="text-sm text-muted-foreground">From your link:</p>
-      <ClipCard
-        clip={data}
-        expanded={expanded}
-        onToggle={() => setExpanded((cur) => !cur)}
-      />
+      <ClipCard clip={data} expanded={expanded} onToggle={() => setExpanded((cur) => !cur)} />
     </div>
   );
 }
