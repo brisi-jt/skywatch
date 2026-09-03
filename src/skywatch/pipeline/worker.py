@@ -29,7 +29,7 @@ from sqlmodel import Session, select
 from skywatch.db.engine import create_db_engine, default_db_path, session_scope
 from skywatch.db.enums import RecordingStage
 from skywatch.db.models import Classification, Frequency, Heartbeat, Recording, Setting, Transcript
-from skywatch.pipeline import budget, narrative
+from skywatch.pipeline import budget, narrative, weekly_email
 from skywatch.pipeline.prefilters import run_prefilters
 from skywatch.pipeline.retention import (
     CAPTURE_PAUSED_KEY,
@@ -103,6 +103,8 @@ class PipelineWorker:
         maintenance_interval_s: float = 900.0,
         backfill_batch: int = 20,
         monotonic=time.monotonic,
+        email_config: weekly_email.EmailDigestConfig | None = None,
+        wall_clock=lambda: datetime.now(UTC),
     ) -> None:
         self._engine = engine
         self._data_root = Path(data_root)
@@ -117,6 +119,8 @@ class PipelineWorker:
         self._airlines = airlines
         self._callsign_boost = callsign_boost
         self._station_tz = station_tz
+        self._email_config = email_config or weekly_email.EmailDigestConfig()
+        self._wall_clock = wall_clock
         self._max_attempts = max(1, max_attempts)
         self._backoff_base_s = backoff_base_s
         self._maintenance_interval_s = maintenance_interval_s
@@ -558,6 +562,42 @@ class PipelineWorker:
         except Exception:
             logger.exception("daily narrative generation failed; will retry next pass")
 
+        try:
+            self._maybe_send_weekly_email()
+        except Exception:
+            logger.exception("weekly email send failed; will retry next pass")
+
+    def _maybe_send_weekly_email(self) -> None:
+        """Send the weekly digest once, on the configured station-local day/hour.
+
+        The idempotency guard doubles as the send log: a settings row per
+        calendar day it fired, keyed by ``weekly_email.sent_marker_key`` — one
+        row per week in practice, since the trigger only ever fires on the
+        configured weekday.
+        """
+        cfg = self._email_config
+        if not cfg.enabled or not cfg.to:
+            return
+        now_local = self._wall_clock().astimezone(self._station_tz)
+        if not weekly_email.is_due(day=cfg.day, hour=cfg.hour, now_local=now_local):
+            return
+        marker_key = weekly_email.sent_marker_key(now_local.date())
+        with session_scope(self._engine) as session:
+            if session.get(Setting, marker_key) is not None:
+                return
+            result = weekly_email.build_weekly_email_input(
+                session, tz=self._station_tz, now=now_local
+            )
+            station_name_row = session.get(Setting, weekly_email.STATION_NAME_KEY)
+            subject, html = weekly_email.render_weekly_email(
+                result,
+                station_name=station_name_row.value if station_name_row else None,
+                base_url=cfg.public_base_url,
+            )
+            weekly_email.send_email(cfg, subject=subject, html_body=html)
+            session.add(Setting(key=marker_key, value=now_local.isoformat()))
+            logger.info("sent the weekly digest email to %d recipient(s)", len(cfg.to))
+
     def _write_heartbeat(self, session: Session, disk: DiskStatus) -> None:
         """One health snapshot per maintenance pass, for the Station sparkline."""
         today = datetime.now(UTC).date()
@@ -766,6 +806,19 @@ def build_worker(settings: Settings, engine=None) -> PipelineWorker:
             launchd_domain=f"gui/{os.getuid()}",
         )
 
+    email_config = weekly_email.EmailDigestConfig(
+        enabled=settings.digest.email.enabled,
+        to=tuple(settings.digest.email.to),
+        day=settings.digest.email.day,
+        hour=settings.digest.email.hour,
+        smtp_host=settings.smtp_host,
+        smtp_port=settings.smtp_port,
+        smtp_username=settings.smtp_username,
+        smtp_password=settings.smtp_password,
+        smtp_from=settings.smtp_from,
+        public_base_url=settings.server.public_base_url,
+    )
+
     return PipelineWorker(
         engine,
         data_root=data_root,
@@ -780,6 +833,7 @@ def build_worker(settings: Settings, engine=None) -> PipelineWorker:
         airlines=airlines,
         callsign_boost=settings.asr.callsign_boost,
         station_tz=ZoneInfo(settings.server.timezone),
+        email_config=email_config,
     )
 
 

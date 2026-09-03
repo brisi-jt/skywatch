@@ -97,3 +97,23 @@ server:
   port: 8000
   # Local timezone for day boundaries in the daily digest and date filters.
   timezone: Europe/London
+  # Where the dashboard is reachable from off-site (e.g. a Tailscale
+  # hostname). Used to build absolute links in the weekly email and ntfy
+  # pushes; leave null and those links fall back to relative paths.
+  public_base_url: null
+
+digest:
+  email:
+    # SMTP credentials go in .env, not here — see config/.env.example.
+    enabled: false
+    to: []
+    # mon/tue/wed/thu/fri/sat/sun, station-local.
+    day: sun
+    hour: 8
+  ntfy:
+    # Real-time push for interesting clips via ntfy.sh or a self-hosted
+    # server. The topic is effectively a shared secret: anyone who knows it
+    # can read the pushes, so treat it like one.
+    enabled: false
+    topic: null
+    server: https://ntfy.sh

@@ -112,6 +112,35 @@ class ServerSettings(BaseModel):
     host: str = "0.0.0.0"
     port: int = 8000
     timezone: str = "Europe/London"
+    # The address the dashboard is reachable at from wherever the weekly
+    # email or an ntfy push is read (e.g. a Tailscale hostname). Left null,
+    # clip links fall back to relative paths, which only resolve when opened
+    # from the same device the dashboard runs on.
+    public_base_url: str | None = None
+
+
+class EmailDigestSettings(BaseModel):
+    """The weekly summary email: who gets it, and when."""
+
+    enabled: bool = False
+    to: list[str] = []
+    day: Literal["mon", "tue", "wed", "thu", "fri", "sat", "sun"] = "sun"
+    hour: int = 8
+
+
+class NtfyDigestSettings(BaseModel):
+    """Optional real-time push for interesting clips, via ntfy.sh or self-hosted."""
+
+    enabled: bool = False
+    topic: str | None = None
+    server: str = "https://ntfy.sh"
+
+
+class DigestSettings(BaseModel):
+    """Outbound notifications: the weekly email and the optional live push."""
+
+    email: EmailDigestSettings = EmailDigestSettings()
+    ntfy: NtfyDigestSettings = NtfyDigestSettings()
 
 
 class Settings(BaseSettings):
@@ -131,11 +160,17 @@ class Settings(BaseSettings):
     sky: SkySettings = SkySettings()
     retention: RetentionSettings = RetentionSettings()
     server: ServerSettings = ServerSettings()
+    digest: DigestSettings = DigestSettings()
 
     gemini_api_key: str | None = None
     groq_api_key: str | None = None
     opensky_client_id: str | None = None
     opensky_client_secret: str | None = None
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_from: str | None = None
 
     @classmethod
     def settings_customise_sources(
