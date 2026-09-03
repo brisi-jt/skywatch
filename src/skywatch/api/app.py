@@ -40,6 +40,7 @@ from skywatch.api.services.deep_tune import (
 from skywatch.api.services.recordings import build_summaries
 from skywatch.api.services.status import build_status
 from skywatch.api.ws import ChangePoller, StreamHub, run_poller
+from skywatch.db import fts
 from skywatch.db.engine import create_db_engine, default_db_path
 from skywatch.db.models import Frequency, Recording, Setting, utcnow
 from skywatch.pipeline.retention import DEEP_TUNE_ACTIVE_KEY
@@ -105,12 +106,17 @@ def create_app(
     static_dir: Path | None = None,
     ws_poll_interval: float = 1.0,
     deep_tune_factory: IQSourceFactory | None = None,
+    fts_available: bool | None = None,
 ) -> FastAPI:
     settings = settings or Settings()
     engine = engine or create_db_engine(default_db_path(settings.data_root))
     capture = capture or CaptureController(engine=engine, settings=settings)
     content_dir = Path(content_dir) if content_dir else _default_content_dir()
     static_dir = Path(static_dir) if static_dir else _default_static_dir()
+    if fts_available is None:
+        fts_available = fts.search_available(engine)
+    if not fts_available:
+        logger.info("transcript search using LIKE fallback: FTS5 index unavailable")
 
     try:
         with Session(engine) as session:
@@ -201,6 +207,7 @@ def create_app(
     app.state.capture = capture
     app.state.content_dir = content_dir
     app.state.timezone = ZoneInfo(settings.server.timezone)
+    app.state.fts_available = fts_available
     app.state.stream_hub = hub
     app.state.deep_tune = deep_tune
 

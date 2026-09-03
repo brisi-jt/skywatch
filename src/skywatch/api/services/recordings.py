@@ -10,7 +10,8 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import func
+from sqlalchemy import case, func, or_
+from sqlalchemy import text as sa_text
 from sqlmodel import Session, select
 
 from skywatch.api.schemas import (
@@ -47,6 +48,11 @@ class RecordingFilters:
     interesting: bool | None = None
     category: ClassificationCategory | None = None
     has_match: bool | None = None
+    # Search: free text (from the ``q`` grammar) plus its structured tokens.
+    fts_match: str | None = None
+    text_terms: tuple[str, ...] = ()
+    freq_query: str | None = None
+    callsign: str | None = None
 
 
 def day_start_utc(day: date, tz: ZoneInfo) -> datetime:
@@ -78,8 +84,14 @@ def query_recordings(
     tz: ZoneInfo,
     limit: int,
     offset: int,
+    fts_available: bool = False,
 ) -> tuple[list[Recording], int]:
-    """Filtered, newest-first page of recordings plus the unpaged total."""
+    """Filtered, newest-first page of recordings plus the unpaged total.
+
+    With a free-text search the page is ordered by relevance (best match
+    first) when the FTS5 index is available, and by recency otherwise. Set
+    ``fts_available`` from the running database's capability probe.
+    """
     stmt = select(Recording)
     if filters.from_date is not None:
         stmt = stmt.where(Recording.started_at_utc >= day_start_utc(filters.from_date, tz))
@@ -88,6 +100,16 @@ def query_recordings(
         stmt = stmt.where(Recording.started_at_utc < end)
     if filters.freq_id is not None:
         stmt = stmt.where(Recording.freq_id == filters.freq_id)
+    if filters.freq_query is not None:
+        stmt = stmt.join(Frequency, Frequency.id == Recording.freq_id)
+        conditions = [Frequency.label.ilike(f"%{filters.freq_query}%")]
+        try:
+            wanted_mhz = float(filters.freq_query)
+        except ValueError:
+            pass
+        else:
+            conditions.append(func.abs(Frequency.mhz - wanted_mhz) < 0.001)
+        stmt = stmt.where(or_(*conditions))
     if filters.interesting is not None or filters.category is not None:
         stmt, latest_cls = _latest_classification_join(stmt)
         if filters.interesting is not None:
@@ -99,16 +121,80 @@ def query_recordings(
             select(AircraftMatch.id).where(AircraftMatch.recording_id == Recording.id).exists()
         )
         stmt = stmt.where(match_exists if filters.has_match else ~match_exists)
+    if filters.callsign is not None:
+        callsign_exists = (
+            select(AircraftMatch.id)
+            .where(
+                AircraftMatch.recording_id == Recording.id,
+                AircraftMatch.callsign.ilike(f"%{filters.callsign}%"),  # type: ignore[union-attr]
+            )
+            .exists()
+        )
+        stmt = stmt.where(callsign_exists)
+
+    ranked_ids: list[int] | None = None
+    if filters.text_terms:
+        if fts_available and filters.fts_match is not None:
+            # bm25 can only be read when the FTS table is the one being
+            # iterated, so match it alone (no join, which would let the planner
+            # drive from transcripts and drop bm25's context) and map the
+            # transcript rowids back to recordings here.
+            matches = session.execute(
+                sa_text(
+                    "SELECT rowid AS tid, bm25(transcripts_fts) AS rank "
+                    "FROM transcripts_fts WHERE transcripts_fts MATCH :fts_match "
+                    "ORDER BY rank"
+                ).bindparams(fts_match=filters.fts_match)
+            ).all()
+            transcript_ids = [row[0] for row in matches]  # best-ranked first
+            if not transcript_ids:
+                return [], 0
+            recording_by_transcript = dict(
+                session.execute(
+                    select(Transcript.id, Transcript.recording_id).where(
+                        Transcript.id.in_(transcript_ids)  # type: ignore[attr-defined]
+                    )
+                ).all()
+            )
+            ranked_ids = []
+            seen: set[int] = set()
+            for transcript_id in transcript_ids:
+                recording_id = recording_by_transcript.get(transcript_id)
+                if recording_id is not None and recording_id not in seen:
+                    seen.add(recording_id)
+                    ranked_ids.append(recording_id)
+            if not ranked_ids:
+                return [], 0
+            stmt = stmt.where(Recording.id.in_(ranked_ids))  # type: ignore[attr-defined]
+        else:
+            # No FTS5: match every term as a substring of the transcript text.
+            for term in filters.text_terms:
+                term_exists = (
+                    select(Transcript.id)
+                    .where(
+                        Transcript.recording_id == Recording.id,
+                        Transcript.text.ilike(f"%{term}%"),  # type: ignore[union-attr]
+                    )
+                    .exists()
+                )
+                stmt = stmt.where(term_exists)
 
     total = session.exec(select(func.count()).select_from(stmt.subquery())).one()
-    rows = session.exec(
-        stmt.order_by(
-            Recording.started_at_utc.desc(),  # type: ignore[attr-defined]
-            Recording.id.desc(),  # type: ignore[union-attr]
+    order = []
+    if ranked_ids is not None:
+        # Preserve the bm25 order (best match first) across pagination.
+        order.append(
+            case(
+                {rid: index for index, rid in enumerate(ranked_ids)},
+                value=Recording.id,
+                else_=len(ranked_ids),
+            )
         )
-        .limit(limit)
-        .offset(offset)
-    ).all()
+    order += [
+        Recording.started_at_utc.desc(),  # type: ignore[attr-defined]
+        Recording.id.desc(),  # type: ignore[union-attr]
+    ]
+    rows = session.exec(stmt.order_by(*order).limit(limit).offset(offset)).all()
     return list(rows), int(total)
 
 

@@ -30,3 +30,7 @@ def get_deep_tune(request: Request) -> DeepTuneManager:
 
 def get_timezone(request: Request) -> ZoneInfo:
     return request.app.state.timezone
+
+
+def get_fts_available(request: Request) -> bool:
+    return request.app.state.fts_available

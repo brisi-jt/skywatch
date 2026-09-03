@@ -93,7 +93,7 @@ export interface paths {
         };
         /**
          * Browse the clip library
-         * @description Recorded transmissions, newest first, as summary cards: frequency, timing, latest transcript snippet, latest verdict, most plausible aircraft candidate, and feedback tallies. All filters combine. Date filters are inclusive and use the station's local day boundaries. `interesting` and `category` match each clip's latest verdict, so a reclassified clip follows its newest classification. `has_match` selects clips with (or without) aircraft candidates.
+         * @description Recorded transmissions, newest first, as summary cards: frequency, timing, latest transcript snippet, latest verdict, most plausible aircraft candidate, and feedback tallies. All filters combine. Date filters are inclusive and use the station's local day boundaries. `interesting` and `category` match each clip's latest verdict, so a reclassified clip follows its newest classification. `has_match` selects clips with (or without) aircraft candidates. `q` searches transcripts, best match first: bare or "quoted" words are the search text, and the tokens `freq:`, `callsign:`, `interesting`, `before:<date>` and `after:<date>` narrow the results. Explicit filter parameters win over anything the same filter's token sets.
          */
         get: operations["list_recordings_recordings_get"];
         put?: never;
@@ -1816,6 +1816,8 @@ export interface operations {
                 category?: components["schemas"]["ClassificationCategory"] | null;
                 /** @description Whether clips must have aircraft candidates. */
                 has_match?: boolean | null;
+                /** @description Search transcripts, with the freq:/callsign:/interesting/before:/after: grammar. */
+                q?: string | null;
                 /** @description Clips per page. */
                 limit?: number;
                 /** @description Clips to skip from the newest. */

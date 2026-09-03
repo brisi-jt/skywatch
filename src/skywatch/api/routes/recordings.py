@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse
 from sqlmodel import Session
 from starlette import status
 
-from skywatch.api.deps import get_session, get_settings, get_timezone
+from skywatch.api.deps import get_fts_available, get_session, get_settings, get_timezone
 from skywatch.api.errors import APIErrorCode, ProblemDetail, ProblemException
 from skywatch.api.schemas import (
     FeedbackCreate,
@@ -28,6 +28,7 @@ from skywatch.api.services.recordings import (
     build_summaries,
     query_recordings,
 )
+from skywatch.api.services.search import parse_search
 from skywatch.db.enums import ClassificationCategory, RecordingStage
 from skywatch.db.models import Feedback, Recording
 from skywatch.settings import Settings
@@ -87,13 +88,18 @@ def page_links(request: Request, *, limit: int, offset: int, total: int) -> dict
         "filters are inclusive and use the station's local day boundaries. "
         "`interesting` and `category` match each clip's latest verdict, so a "
         "reclassified clip follows its newest classification. `has_match` "
-        "selects clips with (or without) aircraft candidates."
+        "selects clips with (or without) aircraft candidates. `q` searches "
+        'transcripts, best match first: bare or "quoted" words are the '
+        "search text, and the tokens `freq:`, `callsign:`, `interesting`, "
+        "`before:<date>` and `after:<date>` narrow the results. Explicit "
+        "filter parameters win over anything the same filter's token sets."
     ),
 )
 def list_recordings(
     request: Request,
     session: Annotated[Session, Depends(get_session)],
     tz: Annotated[ZoneInfo, Depends(get_timezone)],
+    fts_available: Annotated[bool, Depends(get_fts_available)],
     from_date: Annotated[date | None, Query(description="Earliest local day to include.")] = None,
     to_date: Annotated[date | None, Query(description="Latest local day to include.")] = None,
     freq_id: Annotated[int | None, Query(description="Only clips from this frequency.")] = None,
@@ -108,18 +114,34 @@ def list_recordings(
     has_match: Annotated[
         bool | None, Query(description="Whether clips must have aircraft candidates.")
     ] = None,
+    q: Annotated[
+        str | None,
+        Query(
+            description=(
+                "Search transcripts, with the "
+                "freq:/callsign:/interesting/before:/after: grammar."
+            )
+        ),
+    ] = None,
     limit: LimitParam = 50,
     offset: OffsetParam = 0,
 ) -> RecordingListResponse:
+    parsed = parse_search(q)
     filters = RecordingFilters(
-        from_date=from_date,
-        to_date=to_date,
+        from_date=from_date if from_date is not None else parsed.after,
+        to_date=to_date if to_date is not None else parsed.before,
         freq_id=freq_id,
-        interesting=interesting,
+        interesting=interesting if interesting is not None else (parsed.interesting or None),
         category=category,
         has_match=has_match,
+        fts_match=parsed.fts_match,
+        text_terms=parsed.text_terms,
+        freq_query=parsed.freq,
+        callsign=parsed.callsign,
     )
-    rows, total = query_recordings(session, filters, tz=tz, limit=limit, offset=offset)
+    rows, total = query_recordings(
+        session, filters, tz=tz, limit=limit, offset=offset, fts_available=fts_available
+    )
     return RecordingListResponse(
         items=build_summaries(session, rows),
         total=total,
