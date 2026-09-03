@@ -88,6 +88,17 @@ class EnrichmentSettings(BaseModel):
     daily_credit_cap: int = 3000
 
 
+class SkySettings(BaseModel):
+    """Live 'what's overhead' view: source chain, radius, and guards."""
+
+    radius_nm: float = 25
+    opensky_daily_cap: int = 500
+    heard_window_hours: int = 12
+    airplanes_live_base_url: str = "https://api.airplanes.live"
+    adsb_lol_base_url: str = "https://api.adsb.lol"
+    adsb_fi_base_url: str = "https://opendata.adsb.fi"
+
+
 class RetentionSettings(BaseModel):
     """How long routine audio is kept before pruning, and the disk floor."""
 
@@ -117,6 +128,7 @@ class Settings(BaseSettings):
     asr: ASRSettings = ASRSettings()
     llm: LLMSettings = LLMSettings()
     enrichment: EnrichmentSettings = EnrichmentSettings()
+    sky: SkySettings = SkySettings()
     retention: RetentionSettings = RetentionSettings()
     server: ServerSettings = ServerSettings()
 

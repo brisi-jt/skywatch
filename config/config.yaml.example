@@ -70,6 +70,20 @@ enrichment:
   bucket_seconds: 30
   daily_credit_cap: 3000
 
+sky:
+  # Live "what's overhead" view: radius for the community-aggregator and
+  # OpenSky-fallback queries, in nautical miles.
+  radius_nm: 25
+  # Self-imposed ceiling on OpenSky /states credits the Sky view may spend
+  # per day; checked against the same daily counter enrichment draws from.
+  opensky_daily_cap: 500
+  # An aircraft is marked "heard recently" when a clip matched its hex
+  # within this many hours.
+  heard_window_hours: 12
+  airplanes_live_base_url: https://api.airplanes.live
+  adsb_lol_base_url: https://api.adsb.lol
+  adsb_fi_base_url: https://opendata.adsb.fi
+
 retention:
   # Audio for routine clips is deleted after this many days; interesting
   # clips and all database rows are kept indefinitely.

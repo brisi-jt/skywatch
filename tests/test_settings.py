@@ -41,6 +41,13 @@ def test_example_config_loads_with_documented_values(monkeypatch):
     assert settings.enrichment.bucket_seconds == 30
     assert settings.enrichment.daily_credit_cap == 3000
 
+    assert settings.sky.radius_nm == 25
+    assert settings.sky.opensky_daily_cap == 500
+    assert settings.sky.heard_window_hours == 12
+    assert settings.sky.airplanes_live_base_url == "https://api.airplanes.live"
+    assert settings.sky.adsb_lol_base_url == "https://api.adsb.lol"
+    assert settings.sky.adsb_fi_base_url == "https://opendata.adsb.fi"
+
     assert settings.retention.routine_audio_days == 14
     assert settings.retention.min_free_disk_gb == 2.0
 
