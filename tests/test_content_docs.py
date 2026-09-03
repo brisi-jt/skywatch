@@ -95,7 +95,7 @@ class TestRunbookStructure:
 class TestGlossaryStructure:
     def test_one_heading_per_term_alphabetical(self):
         terms = headings(GLOSSARY.read_text())
-        assert len(terms) >= 15
+        assert len(terms) >= 40
         assert terms == sorted(terms, key=str.lower), "glossary terms must be alphabetical"
 
     def test_required_terms_present(self):
@@ -126,6 +126,41 @@ class TestGlossaryStructure:
             "snr",
             "spectrum",
             "frequency trim",
+            # R/T phraseology
+            "roger",
+            "wilco",
+            "standby",
+            "affirm",
+            "negative",
+            "say again",
+            "line up and wait",
+            "backtrack",
+            "orbit",
+            "expedite",
+            # callsigns heard from this station
+            "speedbird",
+            "bluemed",
+            "magic sun",
+            "easy",
+            "wizz",
+            "zap",
+            "shamrock",
+            # UK airspace vocabulary
+            "qfe",
+            "transition altitude",
+            "matz",
+            "danger area",
+            "lars",
+            "london information",
+            "thames radar",
+            "heavy",
+            "super",
+            "sid",
+            "star",
+            # squawk codes beyond the emergency three
+            "7000",
+            "2000",
+            "listening squawk",
         ):
             assert term in text, f"glossary is missing: {term}"
 
