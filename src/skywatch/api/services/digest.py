@@ -10,12 +10,22 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import func
 from sqlmodel import Session, select
 
-from skywatch.api.schemas import DigestResponse, Link
+from skywatch.api.schemas import DigestNarrative, DigestResponse, Link
 from skywatch.api.services.recordings import build_summaries, day_start_utc
 from skywatch.db.enums import FeedbackVerdict
 from skywatch.db.models import Classification, Feedback, Recording
+from skywatch.pipeline import narrative as narrative_cache
 
 GREATEST_HITS_LIMIT = 8
+
+
+def _narrative_resource(session: Session, day: date) -> DigestNarrative | None:
+    cached = narrative_cache.cached_narrative(session, day)
+    if cached is None:
+        return None
+    return DigestNarrative(
+        text=cached.text, generated_at=cached.generated_at, rolling=cached.rolling
+    )
 
 
 def _latest_classifications(session: Session, ids: list[int]) -> dict[int, Classification]:
@@ -87,6 +97,7 @@ def build_digest(
         date=day,
         total_count=len(days_rows),
         interesting_count=len(interesting),
+        narrative=_narrative_resource(session, day),
         interesting=build_summaries(session, interesting),
         greatest_hits=build_summaries(session, _greatest_hits(session)),
         links=links,

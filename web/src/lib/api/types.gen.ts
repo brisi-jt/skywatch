@@ -797,6 +797,28 @@ export interface components {
             seconds_remaining_before_timeout?: number | null;
         };
         /**
+         * DigestNarrative
+         * @description A few plain-English sentences describing a day on the air.
+         */
+        DigestNarrative: {
+            /**
+             * Text
+             * @description The narrative itself: three or four warm sentences.
+             */
+            text: string;
+            /**
+             * Generated At
+             * Format: date-time
+             * @description When this narrative was written (UTC); render an 'as of' time in local zone.
+             */
+            generated_at: string;
+            /**
+             * Rolling
+             * @description True when produced by an on-demand 'summarise today so far' refresh rather than the automatic once-a-day pass — the cue for an 'as of' stamp.
+             */
+            rolling: boolean;
+        };
+        /**
          * DigestResponse
          * @description One local day on the airwaves, summarised.
          */
@@ -820,6 +842,8 @@ export interface components {
             total_count: number;
             /** Interesting Count */
             interesting_count: number;
+            /** @description A written summary of the day, or null when none has been generated (a quiet day, no classifier configured, or the budget was tight). */
+            narrative?: components["schemas"]["DigestNarrative"] | null;
             /**
              * Interesting
              * @description The day's interesting clips, newest first.

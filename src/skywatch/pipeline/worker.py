@@ -21,6 +21,7 @@ import threading
 import time
 from datetime import UTC, datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import func
 from sqlmodel import Session, select
@@ -28,7 +29,7 @@ from sqlmodel import Session, select
 from skywatch.db.engine import create_db_engine, default_db_path, session_scope
 from skywatch.db.enums import RecordingStage
 from skywatch.db.models import Classification, Frequency, Recording, Setting, Transcript
-from skywatch.pipeline import budget
+from skywatch.pipeline import budget, narrative
 from skywatch.pipeline.prefilters import run_prefilters
 from skywatch.pipeline.retention import (
     CAPTURE_PAUSED_KEY,
@@ -48,6 +49,8 @@ logger = logging.getLogger(__name__)
 _ENRICH = "enrich"
 _TRANSCRIBE = "transcribe"
 _CLASSIFY = "classify"
+
+_UTC_TZ = ZoneInfo("UTC")
 
 RECENT_DURATION_WINDOW = 50
 """How many recent clips per channel feed the duration-outlier statistics."""
@@ -91,6 +94,7 @@ class PipelineWorker:
         watcher=None,
         airlines=None,
         callsign_boost: bool = True,
+        station_tz: ZoneInfo = _UTC_TZ,
         max_attempts: int = 3,
         backoff_base_s: float = 30.0,
         maintenance_interval_s: float = 900.0,
@@ -109,6 +113,7 @@ class PipelineWorker:
         self._watcher = watcher
         self._airlines = airlines
         self._callsign_boost = callsign_boost
+        self._station_tz = station_tz
         self._max_attempts = max(1, max_attempts)
         self._backoff_base_s = backoff_base_s
         self._maintenance_interval_s = maintenance_interval_s
@@ -538,6 +543,34 @@ class PipelineWorker:
         except Exception:
             logger.exception("retention pruning failed; will retry next pass")
 
+        try:
+            self._maybe_generate_narrative()
+        except Exception:
+            logger.exception("daily narrative generation failed; will retry next pass")
+
+    def _maybe_generate_narrative(self) -> None:
+        """Write today's narrative once, if a classifier chain is configured.
+
+        Budget-aware and best-effort: a tight budget or an empty chain simply
+        leaves the day without a narrative, and the digest renders fine without
+        one. The dashboard's "summarise today so far" button regenerates it.
+        """
+        if not self._chain:
+            return
+        with session_scope(self._engine) as session:
+            today = datetime.now(self._station_tz).date()
+            if narrative.cached_narrative(session, today) is not None:
+                return
+            result = narrative.generate_narrative(
+                session,
+                day=today,
+                tz=self._station_tz,
+                chain=self._chain,
+                daily_call_cap=self.daily_call_cap,
+            )
+            if result is not None:
+                logger.info("wrote the daily narrative for %s", today)
+
     @staticmethod
     def _deep_tune_holding_receiver(session: Session) -> bool:
         """Whether the API's deep tune session currently holds the dongle.
@@ -704,6 +737,7 @@ def build_worker(settings: Settings, engine=None) -> PipelineWorker:
         watcher=watcher,
         airlines=airlines,
         callsign_boost=settings.asr.callsign_boost,
+        station_tz=ZoneInfo(settings.server.timezone),
     )
 
 

@@ -66,3 +66,45 @@ def build_user_prompt(request: ClassifyRequest) -> str:
         )
     lines.append(f"Transcript:\n{request.transcript}")
     return "\n".join(lines)
+
+
+# -- daily narrative ----------------------------------------------------------------
+
+NARRATIVE_SYSTEM_PROMPT = """\
+You write a short, warm daily note for the owner of an aviation radio station \
+near London Stansted, who likes to know what the day sounded like on the air. \
+You are given the day's totals and its most interesting moments, taken from \
+automatic transcripts of noisy AM radio — so the wording is approximate, and you \
+must never invent detail that is not in what you are given.
+
+Write three or four plain sentences a non-expert would enjoy: roughly how busy \
+the day was, what (if anything) stood out, and the shape of it — a quiet \
+afternoon, a busy morning rush, a lone go-around. Warm and readable, never \
+breathless; a go-around is usually routine caution, not a drama. No lists, no \
+headings, no jargon you have not been handed, and no preamble — reply with the \
+paragraph only."""
+
+
+def build_narrative_prompt(
+    *,
+    day_label: str,
+    total_count: int,
+    interesting_count: int,
+    moments: list[str],
+) -> str:
+    """Assemble the per-day user prompt for the daily narrative.
+
+    ``moments`` is a list of already-formatted one-line descriptions of the
+    day's interesting clips (time, frequency, category, reason, snippet).
+    """
+    lines = [
+        f"Day: {day_label}",
+        f"Transmissions recorded: {total_count}",
+        f"Flagged interesting: {interesting_count}",
+    ]
+    if moments:
+        lines.append("Notable moments:")
+        lines.extend(f"- {moment}" for moment in moments)
+    else:
+        lines.append("Nothing was flagged interesting today.")
+    return "\n".join(lines)

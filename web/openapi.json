@@ -1863,6 +1863,34 @@
         "title": "DeepTuneState",
         "description": "Whether an exclusive off-air spectrum session is running."
       },
+      "DigestNarrative": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "The narrative itself: three or four warm sentences."
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At",
+            "description": "When this narrative was written (UTC); render an 'as of' time in local zone."
+          },
+          "rolling": {
+            "type": "boolean",
+            "title": "Rolling",
+            "description": "True when produced by an on-demand 'summarise today so far' refresh rather than the automatic once-a-day pass \u2014 the cue for an 'as of' stamp."
+          }
+        },
+        "type": "object",
+        "required": [
+          "text",
+          "generated_at",
+          "rolling"
+        ],
+        "title": "DigestNarrative",
+        "description": "A few plain-English sentences describing a day on the air."
+      },
       "DigestResponse": {
         "properties": {
           "_links": {
@@ -1886,6 +1914,17 @@
           "interesting_count": {
             "type": "integer",
             "title": "Interesting Count"
+          },
+          "narrative": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DigestNarrative"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A written summary of the day, or null when none has been generated (a quiet day, no classifier configured, or the budget was tight)."
           },
           "interesting": {
             "items": {

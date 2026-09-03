@@ -39,3 +39,20 @@ class OllamaClassifier:
         except (httpx.HTTPError, KeyError, ValueError) as exc:
             raise ClassifierError(f"ollama request failed: {exc}") from exc
         return parse_verdict(text, model=self.model)
+
+    def narrate(self, system_prompt: str, user_prompt: str) -> str:
+        """Free-text generation for the daily narrative; raises on failure."""
+        body = {
+            "model": self.model,
+            "stream": False,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+        }
+        try:
+            response = self._http.post(f"{self._base_url}/api/chat", json=body)
+            response.raise_for_status()
+            return str(response.json()["message"]["content"])
+        except (httpx.HTTPError, KeyError, ValueError) as exc:
+            raise ClassifierError(f"ollama narrative request failed: {exc}") from exc

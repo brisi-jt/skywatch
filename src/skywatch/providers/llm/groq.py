@@ -47,3 +47,24 @@ class GroqClassifier:
         except (httpx.HTTPError, KeyError, IndexError, ValueError) as exc:
             raise ClassifierError(f"groq request failed: {exc}") from exc
         return parse_verdict(text, model=self.model)
+
+    def narrate(self, system_prompt: str, user_prompt: str) -> str:
+        """Free-text generation for the daily narrative; raises on failure."""
+        body = {
+            "model": self.model,
+            "temperature": 0.4,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+        }
+        try:
+            response = self._http.post(
+                f"{self._base_url}/chat/completions",
+                headers={"Authorization": f"Bearer {self._api_key}"},
+                json=body,
+            )
+            response.raise_for_status()
+            return str(response.json()["choices"][0]["message"]["content"])
+        except (httpx.HTTPError, KeyError, IndexError, ValueError) as exc:
+            raise ClassifierError(f"groq narrative request failed: {exc}") from exc

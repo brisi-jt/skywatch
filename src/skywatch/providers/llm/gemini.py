@@ -48,3 +48,22 @@ class GeminiClassifier:
         except (httpx.HTTPError, KeyError, IndexError, ValueError) as exc:
             raise ClassifierError(f"gemini request failed: {exc}") from exc
         return parse_verdict(text, model=self.model)
+
+    def narrate(self, system_prompt: str, user_prompt: str) -> str:
+        """Free-text generation for the daily narrative; raises on failure."""
+        body = {
+            "systemInstruction": {"parts": [{"text": system_prompt}]},
+            "contents": [{"role": "user", "parts": [{"text": user_prompt}]}],
+            "generationConfig": {"temperature": 0.4},
+        }
+        try:
+            response = self._http.post(
+                f"{self._base_url}/models/{self.model}:generateContent",
+                headers={"x-goog-api-key": self._api_key},
+                json=body,
+            )
+            response.raise_for_status()
+            payload = response.json()
+            return str(payload["candidates"][0]["content"]["parts"][0]["text"])
+        except (httpx.HTTPError, KeyError, IndexError, ValueError) as exc:
+            raise ClassifierError(f"gemini narrative request failed: {exc}") from exc

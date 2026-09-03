@@ -16,7 +16,7 @@ import {
   useStatus,
 } from "@/lib/api/hooks";
 import { playableQueue } from "@/lib/clip";
-import { friendlyDate, shiftDay, todayIso, weekday } from "@/lib/format";
+import { clockTime, friendlyDate, shiftDay, todayIso, weekday } from "@/lib/format";
 import { usePlayer } from "@/lib/player";
 
 export default function TodayPage() {
@@ -112,6 +112,19 @@ export default function TodayPage() {
               )}
             </h1>
           </header>
+
+          {digest.data?.narrative && (
+            <section aria-label="The day in a few words" className="max-w-prose">
+              <p className="text-lg leading-relaxed text-foreground/90">
+                {digest.data.narrative.text}
+              </p>
+              {digest.data.narrative.rolling && (
+                <p className="mt-1 text-sm text-muted-foreground">
+                  as of {clockTime(digest.data.narrative.generated_at)}
+                </p>
+              )}
+            </section>
+          )}
 
           {digest.isError && (
             <p className="text-base text-health-bad">

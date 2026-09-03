@@ -267,16 +267,25 @@ def test_replay_end_to_end(engine, tmp_path):
         assert token_route.call_count == 1
         assert states_route.call_count < len(ids)
 
-        # Blip never reached the LLM: one call each for the other three.
-        assert gemini_route.call_count == 3
-        for call in gemini_route.calls:
+        # Gemini calls split into classification (structured JSON) and the one
+        # daily-narrative call the maintenance pass makes (free text). The blip
+        # never reached the classifier: one classify call each for the other three.
+        def _is_classification(request: httpx.Request) -> bool:
+            body = json.loads(request.content)
+            return "responseSchema" in body.get("generationConfig", {})
+
+        classification_calls = [c for c in gemini_route.calls if _is_classification(c.request)]
+        narrative_calls = [c for c in gemini_route.calls if not _is_classification(c.request)]
+        assert len(classification_calls) == 3
+        assert len(narrative_calls) == 1  # today's narrative, generated once
+        for call in classification_calls:
             assert "roger" not in _gemini_user_text(call.request)
 
-        # Budget accounting matches the traffic.
+        # Budget accounting matches the traffic: 3 classify + 1 narrative.
         from datetime import UTC, datetime
 
         today = datetime.now(UTC).date()
-        assert budget.calls_today(session, ApiProvider.GEMINI, today) == 3
+        assert budget.calls_today(session, ApiProvider.GEMINI, today) == 4
         assert budget.calls_today(session, ApiProvider.OPENSKY, today) == states_route.call_count
 
 

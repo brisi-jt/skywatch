@@ -429,12 +429,34 @@ class StatusResponse(HALModel):
 # -- digest -------------------------------------------------------------------------
 
 
+class DigestNarrative(BaseModel):
+    """A few plain-English sentences describing a day on the air."""
+
+    text: str = Field(description="The narrative itself: three or four warm sentences.")
+    generated_at: datetime = Field(
+        description="When this narrative was written (UTC); render an 'as of' time in local zone."
+    )
+    rolling: bool = Field(
+        description=(
+            "True when produced by an on-demand 'summarise today so far' refresh "
+            "rather than the automatic once-a-day pass — the cue for an 'as of' stamp."
+        )
+    )
+
+
 class DigestResponse(HALModel):
     """One local day on the airwaves, summarised."""
 
     date: date_type
     total_count: int = Field(description="Transmissions recorded during the day.")
     interesting_count: int
+    narrative: DigestNarrative | None = Field(
+        default=None,
+        description=(
+            "A written summary of the day, or null when none has been generated "
+            "(a quiet day, no classifier configured, or the budget was tight)."
+        ),
+    )
     interesting: list[RecordingSummary] = Field(
         description="The day's interesting clips, newest first."
     )
