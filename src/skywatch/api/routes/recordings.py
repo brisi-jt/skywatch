@@ -118,8 +118,7 @@ def list_recordings(
         str | None,
         Query(
             description=(
-                "Search transcripts, with the "
-                "freq:/callsign:/interesting/before:/after: grammar."
+                "Search transcripts, with the freq:/callsign:/interesting/before:/after: grammar."
             )
         ),
     ] = None,
