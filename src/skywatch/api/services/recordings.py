@@ -48,6 +48,7 @@ class RecordingFilters:
     interesting: bool | None = None
     category: ClassificationCategory | None = None
     has_match: bool | None = None
+    starred: bool | None = None
     # Search: free text (from the ``q`` grammar) plus its structured tokens.
     fts_match: str | None = None
     text_terms: tuple[str, ...] = ()
@@ -121,6 +122,12 @@ def query_recordings(
             select(AircraftMatch.id).where(AircraftMatch.recording_id == Recording.id).exists()
         )
         stmt = stmt.where(match_exists if filters.has_match else ~match_exists)
+    if filters.starred is not None:
+        stmt = stmt.where(
+            Recording.starred_at.is_not(None)  # type: ignore[union-attr]
+            if filters.starred
+            else Recording.starred_at.is_(None)  # type: ignore[union-attr]
+        )
     if filters.callsign is not None:
         callsign_exists = (
             select(AircraftMatch.id)
@@ -291,6 +298,7 @@ def build_summaries(session: Session, recordings: list[Recording]) -> list[Recor
                 ),
                 top_match=_match_resource(match) if match else None,
                 feedback=feedback[rec.id],
+                starred_at=rec.starred_at,
                 links=recording_links(rec),
             )
         )

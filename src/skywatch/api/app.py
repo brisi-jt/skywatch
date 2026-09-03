@@ -26,6 +26,7 @@ from skywatch.api.routes import (
     digest,
     eval,
     frequencies,
+    incidents,
     recordings,
     sky,
     station_settings,
@@ -249,6 +250,7 @@ def create_app(
     app.include_router(eval.router)
     app.include_router(stats.router)
     app.include_router(sky.router)
+    app.include_router(incidents.router)
 
     @app.websocket("/stream")
     async def stream(websocket: WebSocket) -> None:

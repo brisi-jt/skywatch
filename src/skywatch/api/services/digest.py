@@ -28,6 +28,9 @@ from skywatch.providers.llm.base import Classifier
 
 GREATEST_HITS_LIMIT = 8
 
+STAR_SCORE_WEIGHT = 2.0
+"""A star counts as this many thumbs-up toward the greatest-hits ranking."""
+
 MIN_SUMMARY_INTERVAL_S = 600
 """Ten minutes between on-demand narrative regenerations, server-enforced."""
 
@@ -66,24 +69,38 @@ def _latest_classifications(session: Session, ids: list[int]) -> dict[int, Class
 
 
 def _greatest_hits(session: Session) -> list[Recording]:
-    """All-time favourites, ranked by thumbs-up count."""
-    rows = session.exec(
-        select(Feedback.recording_id, func.count().label("ups"))
-        .where(Feedback.verdict == FeedbackVerdict.UP)
-        .group_by(Feedback.recording_id)
-        .order_by(func.count().desc(), Feedback.recording_id.desc())  # type: ignore[union-attr]
-        .limit(GREATEST_HITS_LIMIT)
-    ).all()
-    ids = [rec_id for rec_id, _ in rows]
-    if not ids:
+    """All-time favourites, ranked by thumbs-up count; a star adds
+    ``STAR_SCORE_WEIGHT`` points, so a well-loved unvoted clip can still
+    surface. Ties break toward the newer clip."""
+    up_counts: dict[int, int] = dict(
+        session.exec(
+            select(Feedback.recording_id, func.count())
+            .where(Feedback.verdict == FeedbackVerdict.UP)
+            .group_by(Feedback.recording_id)
+        ).all()
+    )
+    starred_ids = set(
+        session.exec(
+            select(Recording.id).where(Recording.starred_at.is_not(None))  # type: ignore[union-attr]
+        ).all()
+    )
+    candidate_ids = set(up_counts) | starred_ids
+    if not candidate_ids:
         return []
+    scores = {
+        rec_id: up_counts.get(rec_id, 0) + (STAR_SCORE_WEIGHT if rec_id in starred_ids else 0.0)
+        for rec_id in candidate_ids
+    }
+    ranked_ids = sorted(candidate_ids, key=lambda rec_id: (-scores[rec_id], -rec_id))[
+        :GREATEST_HITS_LIMIT
+    ]
     recordings = {
         rec.id: rec
         for rec in session.exec(
-            select(Recording).where(Recording.id.in_(ids))  # type: ignore[attr-defined]
+            select(Recording).where(Recording.id.in_(ranked_ids))  # type: ignore[attr-defined]
         ).all()
     }
-    return [recordings[rec_id] for rec_id in ids if rec_id in recordings]
+    return [recordings[rec_id] for rec_id in ranked_ids if rec_id in recordings]
 
 
 def build_digest(

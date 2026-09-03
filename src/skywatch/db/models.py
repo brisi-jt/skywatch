@@ -247,7 +247,9 @@ class IncidentClip(TimestampMixin, table=True):
 
     __tablename__ = "incident_clips"
     __table_args__ = (
-        UniqueConstraint("incident_id", "recording_id", name="uq_incident_clips_incident_recording"),
+        UniqueConstraint(
+            "incident_id", "recording_id", name="uq_incident_clips_incident_recording"
+        ),
     )
 
     id: int | None = Field(default=None, primary_key=True)

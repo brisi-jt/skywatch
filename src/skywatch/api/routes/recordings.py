@@ -19,6 +19,7 @@ from skywatch.api.schemas import (
     ReclassifyResponse,
     RecordingDetail,
     RecordingListResponse,
+    StarResponse,
     WaveformResponse,
 )
 from skywatch.api.services import peaks as peaks_service
@@ -30,7 +31,7 @@ from skywatch.api.services.recordings import (
 )
 from skywatch.api.services.search import parse_search
 from skywatch.db.enums import ClassificationCategory, RecordingStage
-from skywatch.db.models import Feedback, Recording
+from skywatch.db.models import Feedback, Recording, utcnow
 from skywatch.settings import Settings
 
 router = APIRouter(tags=["recordings"])
@@ -92,7 +93,9 @@ def page_links(request: Request, *, limit: int, offset: int, total: int) -> dict
         'transcripts, best match first: bare or "quoted" words are the '
         "search text, and the tokens `freq:`, `callsign:`, `interesting`, "
         "`before:<date>` and `after:<date>` narrow the results. Explicit "
-        "filter parameters win over anything the same filter's token sets."
+        "filter parameters win over anything the same filter's token sets. "
+        "`starred` selects only the clips a listener has starred (or, set "
+        "false, only the ones they haven't)."
     ),
 )
 def list_recordings(
@@ -114,6 +117,9 @@ def list_recordings(
     has_match: Annotated[
         bool | None, Query(description="Whether clips must have aircraft candidates.")
     ] = None,
+    starred: Annotated[
+        bool | None, Query(description="true for starred clips only; false for unstarred only.")
+    ] = None,
     q: Annotated[
         str | None,
         Query(
@@ -133,6 +139,7 @@ def list_recordings(
         interesting=interesting if interesting is not None else (parsed.interesting or None),
         category=category,
         has_match=has_match,
+        starred=starred,
         fts_match=parsed.fts_match,
         text_terms=parsed.text_terms,
         freq_query=parsed.freq,
@@ -328,5 +335,61 @@ def create_feedback(
         verdict=row.verdict,
         note=row.note,
         created_at=row.created_at,
+        links={"recording": Link(href=f"/recordings/{recording_id}")},
+    )
+
+
+@router.post(
+    "/recordings/{recording_id}/star",
+    response_model=StarResponse,
+    summary="Star a clip",
+    description=(
+        "Marks a clip as a favourite. Starring an already-starred clip leaves "
+        "its original starred time untouched. Starred clips are selectable "
+        "with the `starred` filter and weigh more heavily in the all-time "
+        "greatest-hits list."
+    ),
+    responses={404: {"model": ProblemDetail, "description": "Unknown recording."}},
+)
+def star_recording(
+    recording_id: int,
+    session: Annotated[Session, Depends(get_session)],
+) -> StarResponse:
+    recording = _get_recording(session, recording_id)
+    if recording.starred_at is None:
+        recording.starred_at = utcnow()
+        session.add(recording)
+        session.commit()
+        session.refresh(recording)
+    return StarResponse(
+        recording_id=recording.id,
+        starred_at=recording.starred_at,
+        links={"recording": Link(href=f"/recordings/{recording_id}")},
+    )
+
+
+@router.delete(
+    "/recordings/{recording_id}/star",
+    response_model=StarResponse,
+    summary="Unstar a clip",
+    description=(
+        "Clears a clip's starred state. Unstarring a clip that was never "
+        "starred is a no-op, not an error."
+    ),
+    responses={404: {"model": ProblemDetail, "description": "Unknown recording."}},
+)
+def unstar_recording(
+    recording_id: int,
+    session: Annotated[Session, Depends(get_session)],
+) -> StarResponse:
+    recording = _get_recording(session, recording_id)
+    if recording.starred_at is not None:
+        recording.starred_at = None
+        session.add(recording)
+        session.commit()
+        session.refresh(recording)
+    return StarResponse(
+        recording_id=recording.id,
+        starred_at=recording.starred_at,
         links={"recording": Link(href=f"/recordings/{recording_id}")},
     )

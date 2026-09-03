@@ -466,9 +466,7 @@ def test_incident_clip_requires_existing_incident_and_recording(engine):
 def test_incident_clip_membership_is_unique(engine):
     recording_id = _seed_recording(engine)
     incident_id = _persist(engine, Incident(title="Sequence"))
-    _persist(
-        engine, IncidentClip(incident_id=incident_id, recording_id=recording_id, position=0)
-    )
+    _persist(engine, IncidentClip(incident_id=incident_id, recording_id=recording_id, position=0))
     with pytest.raises(IntegrityError), Session(engine) as s:
         s.add(IncidentClip(incident_id=incident_id, recording_id=recording_id, position=1))
         s.commit()

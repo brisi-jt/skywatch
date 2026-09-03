@@ -182,7 +182,7 @@
           "recordings"
         ],
         "summary": "Browse the clip library",
-        "description": "Recorded transmissions, newest first, as summary cards: frequency, timing, latest transcript snippet, latest verdict, most plausible aircraft candidate, and feedback tallies. All filters combine. Date filters are inclusive and use the station's local day boundaries. `interesting` and `category` match each clip's latest verdict, so a reclassified clip follows its newest classification. `has_match` selects clips with (or without) aircraft candidates. `q` searches transcripts, best match first: bare or \"quoted\" words are the search text, and the tokens `freq:`, `callsign:`, `interesting`, `before:<date>` and `after:<date>` narrow the results. Explicit filter parameters win over anything the same filter's token sets.",
+        "description": "Recorded transmissions, newest first, as summary cards: frequency, timing, latest transcript snippet, latest verdict, most plausible aircraft candidate, and feedback tallies. All filters combine. Date filters are inclusive and use the station's local day boundaries. `interesting` and `category` match each clip's latest verdict, so a reclassified clip follows its newest classification. `has_match` selects clips with (or without) aircraft candidates. `q` searches transcripts, best match first: bare or \"quoted\" words are the search text, and the tokens `freq:`, `callsign:`, `interesting`, `before:<date>` and `after:<date>` narrow the results. Explicit filter parameters win over anything the same filter's token sets. `starred` selects only the clips a listener has starred (or, set false, only the ones they haven't).",
         "operationId": "list_recordings_recordings_get",
         "parameters": [
           {
@@ -294,6 +294,24 @@
               "title": "Has Match"
             },
             "description": "Whether clips must have aircraft candidates."
+          },
+          {
+            "name": "starred",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "true for starred clips only; false for unstarred only.",
+              "title": "Starred"
+            },
+            "description": "true for starred clips only; false for unstarred only."
           },
           {
             "name": "q",
@@ -642,6 +660,110 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/FeedbackResource"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown recording.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/recordings/{recording_id}/star": {
+      "post": {
+        "tags": [
+          "recordings"
+        ],
+        "summary": "Star a clip",
+        "description": "Marks a clip as a favourite. Starring an already-starred clip leaves its original starred time untouched. Starred clips are selectable with the `starred` filter and weigh more heavily in the all-time greatest-hits list.",
+        "operationId": "star_recording_recordings__recording_id__star_post",
+        "parameters": [
+          {
+            "name": "recording_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Recording Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StarResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown recording.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "recordings"
+        ],
+        "summary": "Unstar a clip",
+        "description": "Clears a clip's starred state. Unstarring a clip that was never starred is a no-op, not an error.",
+        "operationId": "unstar_recording_recordings__recording_id__star_delete",
+        "parameters": [
+          {
+            "name": "recording_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Recording Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StarResponse"
                 }
               }
             }
@@ -1260,6 +1382,299 @@
           }
         }
       }
+    },
+    "/incidents": {
+      "get": {
+        "tags": [
+          "incidents"
+        ],
+        "summary": "List incident bundles",
+        "description": "Listener-curated groups of clips that belong together \u2014 a go-around sequence, an emergency followed by its resolution \u2014 newest first.",
+        "operationId": "list_incidents_incidents_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentListResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "incidents"
+        ],
+        "summary": "Start a new incident bundle",
+        "description": "Creates an empty, titled incident; add clips to it afterwards.",
+        "operationId": "create_incident_incidents_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IncidentCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/incidents/{incident_id}": {
+      "get": {
+        "tags": [
+          "incidents"
+        ],
+        "summary": "One incident with its clips in order",
+        "operationId": "get_incident_incidents__incident_id__get",
+        "parameters": [
+          {
+            "name": "incident_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Incident Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown incident.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "incidents"
+        ],
+        "summary": "Delete an incident bundle",
+        "description": "Removes the bundle and its clip memberships; the clips themselves are untouched.",
+        "operationId": "delete_incident_incidents__incident_id__delete",
+        "parameters": [
+          {
+            "name": "incident_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Incident Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Unknown incident.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/incidents/{incident_id}/clips": {
+      "post": {
+        "tags": [
+          "incidents"
+        ],
+        "summary": "Add a clip to an incident",
+        "description": "Appends a clip to the end of the incident's playback order. A clip already in the incident cannot be added twice.",
+        "operationId": "add_clip_incidents__incident_id__clips_post",
+        "parameters": [
+          {
+            "name": "incident_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Incident Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IncidentAddClip"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown incident or recording.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The clip is already in this incident.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/incidents/{incident_id}/clips/{recording_id}": {
+      "delete": {
+        "tags": [
+          "incidents"
+        ],
+        "summary": "Remove a clip from an incident",
+        "description": "Drops one clip from the bundle and closes the gap in the playback order; the clip itself is untouched.",
+        "operationId": "remove_clip_incidents__incident_id__clips__recording_id__delete",
+        "parameters": [
+          {
+            "name": "incident_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Incident Id"
+            }
+          },
+          {
+            "name": "recording_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Recording Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown incident or membership.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1284,6 +1699,9 @@
           "deep_tune_active",
           "deep_tune_not_active",
           "recording_not_classifiable",
+          "incident_not_found",
+          "incident_clip_not_found",
+          "recording_already_in_incident",
           "summary_rate_limited",
           "summary_unavailable",
           "method_not_allowed",
@@ -2627,6 +3045,171 @@
         "title": "HourlyHeatCell",
         "description": "A transmission count for one station-local hour on one frequency.\n\nOnly non-zero combinations are included; anything absent is zero."
       },
+      "IncidentAddClip": {
+        "properties": {
+          "recording_id": {
+            "type": "integer",
+            "title": "Recording Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "recording_id"
+        ],
+        "title": "IncidentAddClip",
+        "description": "Request body for appending a clip to an incident."
+      },
+      "IncidentClipResource": {
+        "properties": {
+          "position": {
+            "type": "integer",
+            "title": "Position"
+          },
+          "recording": {
+            "$ref": "#/components/schemas/RecordingSummary"
+          }
+        },
+        "type": "object",
+        "required": [
+          "position",
+          "recording"
+        ],
+        "title": "IncidentClipResource",
+        "description": "One clip's place in an incident's ordered playback."
+      },
+      "IncidentCreate": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title"
+        ],
+        "title": "IncidentCreate",
+        "description": "Request body for grouping clips into a new incident."
+      },
+      "IncidentDetail": {
+        "properties": {
+          "_links": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "type": "object",
+            "title": "Links",
+            "description": "HAL links: self plus related resources and the actions currently available on this resource."
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "clips": {
+            "items": {
+              "$ref": "#/components/schemas/IncidentClipResource"
+            },
+            "type": "array",
+            "title": "Clips",
+            "description": "Ordered by position, ascending."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "created_at",
+          "updated_at",
+          "clips"
+        ],
+        "title": "IncidentDetail",
+        "description": "An incident with its clips in playback order."
+      },
+      "IncidentListResponse": {
+        "properties": {
+          "_links": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "type": "object",
+            "title": "Links",
+            "description": "HAL links: self plus related resources and the actions currently available on this resource."
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/IncidentSummary"
+            },
+            "type": "array",
+            "title": "Items",
+            "description": "Newest incidents first."
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "IncidentListResponse"
+      },
+      "IncidentSummary": {
+        "properties": {
+          "_links": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "type": "object",
+            "title": "Links",
+            "description": "HAL links: self plus related resources and the actions currently available on this resource."
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "clip_count": {
+            "type": "integer",
+            "title": "Clip Count"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "clip_count",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "IncidentSummary",
+        "description": "An incident as it appears in the list view."
+      },
       "Link": {
         "properties": {
           "href": {
@@ -2875,6 +3458,19 @@
           "feedback": {
             "$ref": "#/components/schemas/FeedbackCounts"
           },
+          "starred_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Starred At",
+            "description": "When the listener starred this clip, or null when it isn't starred."
+          },
           "sample_rate": {
             "type": "integer",
             "title": "Sample Rate"
@@ -2955,6 +3551,7 @@
           "classification",
           "top_match",
           "feedback",
+          "starred_at",
           "sample_rate",
           "file_path",
           "stage_error",
@@ -3098,6 +3695,19 @@
           },
           "feedback": {
             "$ref": "#/components/schemas/FeedbackCounts"
+          },
+          "starred_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Starred At",
+            "description": "When the listener starred this clip, or null when it isn't starred."
           }
         },
         "type": "object",
@@ -3112,7 +3722,8 @@
           "transcript_snippet",
           "classification",
           "top_match",
-          "feedback"
+          "feedback",
+          "starred_at"
         ],
         "title": "RecordingSummary",
         "description": "A clip as it appears in lists and cards."
@@ -3478,6 +4089,42 @@
           "squelch_snr_db"
         ],
         "title": "SquelchOverrideRequest"
+      },
+      "StarResponse": {
+        "properties": {
+          "_links": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Link"
+            },
+            "type": "object",
+            "title": "Links",
+            "description": "HAL links: self plus related resources and the actions currently available on this resource."
+          },
+          "recording_id": {
+            "type": "integer",
+            "title": "Recording Id"
+          },
+          "starred_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Starred At",
+            "description": "When the clip was starred, or null when it isn't starred."
+          }
+        },
+        "type": "object",
+        "required": [
+          "recording_id",
+          "starred_at"
+        ],
+        "title": "StarResponse",
+        "description": "A clip's star state after a star or unstar request."
       },
       "StatsFileState": {
         "properties": {
