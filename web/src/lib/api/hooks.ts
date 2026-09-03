@@ -72,6 +72,20 @@ export function useDigest(date: string) {
   });
 }
 
+/** Regenerate today's written narrative on demand ("summarise today so far"). */
+export function useSummariseToday() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const result = await api.POST("/digest/summary");
+      return unwrap(result);
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(["digest", data.date], data);
+    },
+  });
+}
+
 /** True once any recording has ever been captured — the day-one signal. */
 export function useHasAnyRecording() {
   return useQuery({

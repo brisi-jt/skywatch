@@ -45,6 +45,8 @@ class APIErrorCode(StrEnum):
     DEEP_TUNE_ACTIVE = "deep_tune_active"
     DEEP_TUNE_NOT_ACTIVE = "deep_tune_not_active"
     RECORDING_NOT_CLASSIFIABLE = "recording_not_classifiable"
+    SUMMARY_RATE_LIMITED = "summary_rate_limited"
+    SUMMARY_UNAVAILABLE = "summary_unavailable"
     METHOD_NOT_ALLOWED = "method_not_allowed"
     INTERNAL_ERROR = "internal_error"
 

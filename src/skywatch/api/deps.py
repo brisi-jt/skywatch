@@ -34,3 +34,8 @@ def get_timezone(request: Request) -> ZoneInfo:
 
 def get_fts_available(request: Request) -> bool:
     return request.app.state.fts_available
+
+
+def get_classifier_chain(request: Request) -> list:
+    """The LLM provider chain the API uses for on-demand narrative summaries."""
+    return request.app.state.classifier_chain

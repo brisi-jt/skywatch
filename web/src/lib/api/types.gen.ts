@@ -244,6 +244,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/digest/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Summarise today so far
+         * @description Regenerates today's written narrative from everything recorded so far and returns today's digest with the fresh summary attached (marked as an 'as of now' refresh). Rate-limited to once every ten minutes and counted against the station's daily model budget. Returns 429 `summary_rate_limited` if refreshed too recently, 409 `summary_unavailable` when nothing has been recorded today yet, and 503 `summary_unavailable` when no summary can be produced (no classifier configured, or the budget is used up).
+         */
+        post: operations["summarise_today_digest_summary_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/runbook": {
         parameters: {
             query?: never;
@@ -477,7 +497,7 @@ export interface components {
          * @description Stable machine-readable error codes for problem responses.
          * @enum {string}
          */
-        APIErrorCode: "validation_error" | "not_found" | "frequency_not_found" | "recording_not_found" | "document_not_found" | "audio_deleted" | "audio_file_missing" | "window_conflict" | "capture_paused_low_disk" | "unknown_setting_key" | "invalid_setting_value" | "tuning_invalid_value" | "tuning_unknown_frequency" | "deep_tune_unavailable" | "deep_tune_active" | "deep_tune_not_active" | "recording_not_classifiable" | "method_not_allowed" | "internal_error";
+        APIErrorCode: "validation_error" | "not_found" | "frequency_not_found" | "recording_not_found" | "document_not_found" | "audio_deleted" | "audio_file_missing" | "window_conflict" | "capture_paused_low_disk" | "unknown_setting_key" | "invalid_setting_value" | "tuning_invalid_value" | "tuning_unknown_frequency" | "deep_tune_unavailable" | "deep_tune_active" | "deep_tune_not_active" | "recording_not_classifiable" | "summary_rate_limited" | "summary_unavailable" | "method_not_allowed" | "internal_error";
         /**
          * AircraftMatchResource
          * @description A probable aircraft near the station when the clip was captured.
@@ -2173,6 +2193,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    summarise_today_digest_summary_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DigestResponse"];
                 };
             };
         };

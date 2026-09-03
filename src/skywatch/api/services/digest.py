@@ -4,19 +4,25 @@ Day boundaries follow the station's configured timezone, so "Tuesday"
 means Tuesday as the listener experiences it, not UTC Tuesday.
 """
 
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import func
 from sqlmodel import Session, select
+from starlette import status
 
+from skywatch.api.errors import APIErrorCode, ProblemException
 from skywatch.api.schemas import DigestNarrative, DigestResponse, Link
 from skywatch.api.services.recordings import build_summaries, day_start_utc
 from skywatch.db.enums import FeedbackVerdict
 from skywatch.db.models import Classification, Feedback, Recording
 from skywatch.pipeline import narrative as narrative_cache
+from skywatch.providers.llm.base import Classifier
 
 GREATEST_HITS_LIMIT = 8
+
+MIN_SUMMARY_INTERVAL_S = 600
+"""Ten minutes between on-demand narrative regenerations, server-enforced."""
 
 
 def _narrative_resource(session: Session, day: date) -> DigestNarrative | None:
@@ -102,3 +108,59 @@ def build_digest(
         greatest_hits=build_summaries(session, _greatest_hits(session)),
         links=links,
     )
+
+
+def regenerate_today_summary(
+    session: Session,
+    *,
+    tz: ZoneInfo,
+    chain: list[Classifier],
+    daily_call_cap: int,
+    now: datetime | None = None,
+) -> DigestResponse:
+    """Rewrite today's narrative on demand, then return today's digest.
+
+    Rate-limited to one regeneration every ten minutes and budget-counted like
+    any other model call. Raises a problem when it is too soon, when there is
+    nothing to summarise yet, or when no summary can be produced (no classifier
+    configured, or the budget is used up).
+    """
+    now = now or datetime.now(UTC)
+    today = now.astimezone(tz).date()
+
+    existing = narrative_cache.cached_narrative(session, today)
+    if existing is not None:
+        age = (now - existing.generated_at).total_seconds()
+        if age < MIN_SUMMARY_INTERVAL_S:
+            raise ProblemException(
+                status.HTTP_429_TOO_MANY_REQUESTS,
+                APIErrorCode.SUMMARY_RATE_LIMITED,
+                "today's summary was refreshed moments ago; try again shortly",
+                extensions={"retry_after_s": int(MIN_SUMMARY_INTERVAL_S - age)},
+            )
+
+    if narrative_cache.build_narrative_input(session, day=today, tz=tz) is None:
+        raise ProblemException(
+            status.HTTP_409_CONFLICT,
+            APIErrorCode.SUMMARY_UNAVAILABLE,
+            "nothing has been recorded today yet, so there is nothing to summarise",
+        )
+
+    result = narrative_cache.generate_narrative(
+        session,
+        day=today,
+        tz=tz,
+        chain=chain,
+        daily_call_cap=daily_call_cap,
+        rolling=True,
+        now=now,
+    )
+    if result is None:
+        raise ProblemException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            APIErrorCode.SUMMARY_UNAVAILABLE,
+            "the station could not write a summary right now; the model budget "
+            "may be used up until it resets",
+        )
+    session.commit()
+    return build_digest(session, day=today, tz=tz, today=today)

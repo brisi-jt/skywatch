@@ -8,9 +8,15 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, Query
 from sqlmodel import Session
 
-from skywatch.api.deps import get_session, get_timezone
+from skywatch.api.deps import (
+    get_classifier_chain,
+    get_session,
+    get_settings,
+    get_timezone,
+)
 from skywatch.api.schemas import DigestResponse
-from skywatch.api.services.digest import build_digest
+from skywatch.api.services.digest import build_digest, regenerate_today_summary
+from skywatch.settings import Settings
 
 router = APIRouter(tags=["digest"])
 
@@ -39,3 +45,29 @@ def get_digest(
 ) -> DigestResponse:
     day = date or datetime.now(tz).date()
     return build_digest(session, day=day, tz=tz)
+
+
+@router.post(
+    "/digest/summary",
+    response_model=DigestResponse,
+    summary="Summarise today so far",
+    description=(
+        "Regenerates today's written narrative from everything recorded so far "
+        "and returns today's digest with the fresh summary attached (marked as "
+        "an 'as of now' refresh). Rate-limited to once every ten minutes and "
+        "counted against the station's daily model budget. Returns 429 "
+        "`summary_rate_limited` if refreshed too recently, 409 "
+        "`summary_unavailable` when nothing has been recorded today yet, and "
+        "503 `summary_unavailable` when no summary can be produced (no "
+        "classifier configured, or the budget is used up)."
+    ),
+)
+def summarise_today(
+    session: Annotated[Session, Depends(get_session)],
+    tz: Annotated[ZoneInfo, Depends(get_timezone)],
+    settings: Annotated[Settings, Depends(get_settings)],
+    chain: Annotated[list, Depends(get_classifier_chain)],
+) -> DigestResponse:
+    return regenerate_today_summary(
+        session, tz=tz, chain=chain, daily_call_cap=settings.llm.daily_call_cap
+    )

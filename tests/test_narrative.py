@@ -1,8 +1,12 @@
 """The daily narrative: generation, caching, budget-awareness, and digest wiring."""
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
+import pytest
+
+from skywatch.api.deps import get_classifier_chain
+from skywatch.api.services import digest as digest_service
 from skywatch.db.enums import ApiProvider
 from skywatch.pipeline import budget, narrative
 from skywatch.pipeline.worker import PipelineWorker
@@ -170,3 +174,89 @@ class TestDigestWiring:
         _seed_day(seed)
         body = client.get("/digest", params={"date": "2026-07-10"}).json()
         assert body["narrative"] is None
+
+
+def _seed_today(seed):
+    """A recording on the real station-local today, for the summary route."""
+    freq = seed.frequency()
+    rec = seed.recording(freq, started=datetime.now(UTC))
+    seed.transcript(rec, text="Cleared to land runway two two, Speedbird 9.")
+    seed.classification(rec, is_interesting=True)
+    return rec
+
+
+class TestRollingSummary:
+    def _use_chain(self, station, chain):
+        station.app.dependency_overrides[get_classifier_chain] = lambda: chain
+
+    def test_regenerate_returns_rolling_summary(self, station, client, seed):
+        _seed_today(seed)
+        self._use_chain(station, [FakeNarrator(text="Busy so far this morning.")])
+
+        response = client.post("/digest/summary")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["narrative"]["text"] == "Busy so far this morning."
+        assert body["narrative"]["rolling"] is True
+
+    def test_second_refresh_is_rate_limited(self, station, client, seed):
+        _seed_today(seed)
+        self._use_chain(station, [FakeNarrator()])
+
+        assert client.post("/digest/summary").status_code == 200
+        second = client.post("/digest/summary")
+
+        assert second.status_code == 429
+        body = second.json()
+        assert body["code"] == "summary_rate_limited"
+        assert body["retry_after_s"] > 0
+
+    def test_nothing_recorded_today_is_a_conflict(self, station, client, seed):
+        seed.frequency()  # a frequency but no recordings today
+        self._use_chain(station, [FakeNarrator()])
+
+        response = client.post("/digest/summary")
+
+        assert response.status_code == 409
+        assert response.json()["code"] == "summary_unavailable"
+
+    def test_no_classifier_is_unavailable(self, station, client, seed):
+        _seed_today(seed)
+        self._use_chain(station, [])  # no provider configured
+
+        response = client.post("/digest/summary")
+
+        assert response.status_code == 503
+        assert response.json()["code"] == "summary_unavailable"
+
+    def test_rate_limit_clears_after_the_interval(self, session, seed):
+        _seed_today(seed)
+        tz = LONDON
+        first = datetime.now(UTC)
+        digest_service.regenerate_today_summary(
+            session,
+            tz=tz,
+            chain=[FakeNarrator(text="First pass.")],
+            daily_call_cap=900,
+            now=first,
+        )
+        # a minute later: still inside the ten-minute window
+        with pytest.raises(Exception) as too_soon:
+            digest_service.regenerate_today_summary(
+                session,
+                tz=tz,
+                chain=[FakeNarrator()],
+                daily_call_cap=900,
+                now=first + timedelta(minutes=1),
+            )
+        assert getattr(too_soon.value, "code", None) == "summary_rate_limited"
+
+        later = digest_service.regenerate_today_summary(
+            session,
+            tz=tz,
+            chain=[FakeNarrator(text="Fresh pass.")],
+            daily_call_cap=900,
+            now=first + timedelta(minutes=11),
+        )
+        assert later.narrative.text == "Fresh pass."

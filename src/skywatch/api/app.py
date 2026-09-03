@@ -44,6 +44,7 @@ from skywatch.db import fts
 from skywatch.db.engine import create_db_engine, default_db_path
 from skywatch.db.models import Frequency, Recording, Setting, utcnow
 from skywatch.pipeline.retention import DEEP_TUNE_ACTIVE_KEY
+from skywatch.providers.llm import build_classifier_chain
 from skywatch.settings import Settings
 from skywatch.tuning import TuningService
 
@@ -208,6 +209,13 @@ def create_app(
     app.state.content_dir = content_dir
     app.state.timezone = ZoneInfo(settings.server.timezone)
     app.state.fts_available = fts_available
+    # The API drives on-demand narrative summaries through the same provider
+    # chain and budget as the worker; missing credentials yield an empty chain.
+    app.state.classifier_chain = build_classifier_chain(
+        settings.llm,
+        gemini_api_key=settings.gemini_api_key,
+        groq_api_key=settings.groq_api_key,
+    )
     app.state.stream_hub = hub
     app.state.deep_tune = deep_tune
 

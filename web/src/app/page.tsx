@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ChevronLeft, ChevronRight, Play } from "lucide-react";
+import { ChevronLeft, ChevronRight, Play, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -10,10 +10,12 @@ import { EmptyHero } from "@/components/empty-hero";
 import { HealthStrip } from "@/components/health-strip";
 import { Button } from "@/components/ui/button";
 import {
+  ApiError,
   useDigest,
   useFrequencies,
   useHasAnyRecording,
   useStatus,
+  useSummariseToday,
 } from "@/lib/api/hooks";
 import { playableQueue } from "@/lib/clip";
 import { clockTime, friendlyDate, shiftDay, todayIso, weekday } from "@/lib/format";
@@ -29,6 +31,12 @@ export default function TodayPage() {
   const { data: frequencies } = useFrequencies();
   const player = usePlayer();
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const summarise = useSummariseToday();
+  const [cooldownUntil, setCooldownUntil] = useState(() =>
+    typeof window === "undefined"
+      ? 0
+      : Number(window.localStorage.getItem("skywatch:summary:cooldown") ?? 0),
+  );
 
   const featuredQueue = digest.data ? playableQueue(digest.data.interesting) : [];
   const hitsQueue = digest.data ? playableQueue(digest.data.greatest_hits) : [];
@@ -40,6 +48,28 @@ export default function TodayPage() {
   if (!anyPending && hasAny === false) {
     return <EmptyHero status={status} activeCount={activeCount} />;
   }
+
+  const SUMMARY_COOLDOWN_MS = 10 * 60 * 1000;
+  const onCooldown = cooldownUntil > Date.now();
+  const startCooldown = (ms: number) => {
+    const until = Date.now() + ms;
+    setCooldownUntil(until);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("skywatch:summary:cooldown", String(until));
+    }
+  };
+  const handleSummarise = () =>
+    summarise.mutate(undefined, {
+      onSuccess: () => startCooldown(SUMMARY_COOLDOWN_MS),
+      onError: (err) => {
+        if (err instanceof ApiError && err.status === 429) {
+          const retry = Number(
+            (err.problem as { retry_after_s?: number } | null)?.retry_after_s ?? 600,
+          );
+          startCooldown(retry * 1000);
+        }
+      },
+    });
 
   const goToDay = (delta: number) => {
     setDirection(delta);
@@ -113,15 +143,49 @@ export default function TodayPage() {
             </h1>
           </header>
 
-          {digest.data?.narrative && (
+          {(digest.data?.narrative || isToday) && (
             <section aria-label="The day in a few words" className="max-w-prose">
-              <p className="text-lg leading-relaxed text-foreground/90">
-                {digest.data.narrative.text}
-              </p>
-              {digest.data.narrative.rolling && (
-                <p className="mt-1 text-sm text-muted-foreground">
-                  as of {clockTime(digest.data.narrative.generated_at)}
-                </p>
+              {digest.data?.narrative && (
+                <>
+                  <p className="text-lg leading-relaxed text-foreground/90">
+                    {digest.data.narrative.text}
+                  </p>
+                  {digest.data.narrative.rolling && (
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      as of {clockTime(digest.data.narrative.generated_at)}
+                    </p>
+                  )}
+                </>
+              )}
+              {isToday && (
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <Button
+                    variant="outline"
+                    className="min-h-10"
+                    onClick={handleSummarise}
+                    disabled={summarise.isPending || onCooldown}
+                  >
+                    <Sparkles className="size-4" />
+                    {summarise.isPending
+                      ? "Summarising…"
+                      : digest.data?.narrative
+                        ? "Refresh the summary"
+                        : "Summarise today so far"}
+                  </Button>
+                  {onCooldown ? (
+                    <span className="text-sm text-muted-foreground">
+                      just updated — try again in a few minutes
+                    </span>
+                  ) : (
+                    summarise.isError && (
+                      <span className="text-sm text-health-warn">
+                        {summarise.error instanceof ApiError
+                          ? summarise.error.message
+                          : "Could not write a summary just now."}
+                      </span>
+                    )
+                  )}
+                </div>
               )}
             </section>
           )}
