@@ -1,10 +1,5 @@
 # skywatch — repo conventions
 
-## Tracking
-
-No Linear for this repo. Plans, ledgers, and handoffs live in-repo under
-`thoughts/`. This is a deliberate waiver of the usual Linear workflow.
-
 ## Portability (production floor: 2015 dual-core i5, 8 GB RAM, macOS 12)
 
 - Never hardcode CPU architecture, Homebrew prefixes, or `-march` flags —
