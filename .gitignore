@@ -34,3 +34,6 @@ web/out/
 
 # macOS
 .DS_Store
+
+# Internal planning corpus: kept locally, not published.
+thoughts/
