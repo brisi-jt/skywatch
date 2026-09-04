@@ -13,7 +13,7 @@ def test_example_config_loads_with_documented_values(monkeypatch):
     assert settings.data_root == Path("data")
 
     assert settings.receiver.postcode == "SW1A 1AA"
-    # Postcode centroid for SW1A 1AA from postcodes.io (London Stansted).
+    # Postcode centroid for the example postcode from postcodes.io.
     assert settings.receiver.lat == 51.5
     assert settings.receiver.lon == -0.1
 

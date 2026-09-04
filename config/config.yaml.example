@@ -6,8 +6,8 @@ data_root: ./data
 
 receiver:
   postcode: "SW1A 1AA"
-  # Postcode centroid from postcodes.io (London Stansted); regenerate for a new
-  # site with: uv run python scripts/geocode.py "<postcode>"
+  # Postcode centroid from postcodes.io; regenerate for a new site with:
+  # uv run python scripts/geocode.py "<postcode>"
   lat: 51.5
   lon: -0.1
 

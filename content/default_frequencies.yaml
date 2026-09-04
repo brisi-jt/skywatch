@@ -1,4 +1,4 @@
-# Default frequency plan for the London Stansted (SW1A) station, seeded into the
+# Default frequency plan for an example UK station near London Stansted, seeded into the
 # frequencies table on first run.
 #
 # Every mhz value with `verified: false` is a plausible figure taken from

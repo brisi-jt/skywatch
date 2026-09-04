@@ -42,9 +42,9 @@ def _states_payload():
     return {
         "time": 1_752_600_000,
         "states": [
-            state("4009f9", "BAW472  ", 0.05, 51.70, 900.0),  # close, low — tower fit
-            state("4ca7b4", "RYR815B ", 0.30, 51.90, 3500.0),  # further out
-            state("a1b2c3", "EZY45XY ", 0.02, 51.69, 11000.0),  # close but high
+            state("4009f9", "BAW472  ", -0.0671, 51.5136, 900.0),  # close, low — tower fit
+            state("4ca7b4", "RYR815B ", 0.1829, 51.7136, 3500.0),  # further out
+            state("a1b2c3", "EZY45XY ", -0.0971, 51.5036, 11000.0),  # close but high
         ],
     }
 
@@ -123,8 +123,8 @@ def _vectors():
         StateVector(
             "4009f9",
             "BAW472",
-            lat=51.70,
-            lon=0.05,
+            lat=51.5136,
+            lon=-0.0671,
             baro_alt_m=900.0,
             on_ground=False,
             velocity_ms=120.0,
@@ -132,8 +132,8 @@ def _vectors():
         StateVector(
             "4ca7b4",
             "RYR815B",
-            lat=51.90,
-            lon=0.30,
+            lat=51.7136,
+            lon=0.1829,
             baro_alt_m=3500.0,
             on_ground=False,
             velocity_ms=140.0,
@@ -141,8 +141,8 @@ def _vectors():
         StateVector(
             "a1b2c3",
             "EZY45XY",
-            lat=51.69,
-            lon=0.02,
+            lat=51.5036,
+            lon=-0.0971,
             baro_alt_m=11000.0,
             on_ground=False,
             velocity_ms=230.0,
