@@ -37,8 +37,11 @@ the data itself is under the Database Contents License 1.0.
 
 `content/plane_alert_db.csv` badges probable aircraft with a curated category
 (military, government, historic, and so on) from
-[plane-alert-db](https://github.com/sdr-enthusiasts/plane-alert-db), keyed by
-ICAO hex. The repository ships only the header; run
+[plane-alert-db](https://github.com/sdr-enthusiasts/plane-alert-db) by
+SDR-Enthusiasts, Ramon F. Kolb (kx1t), and contributors, keyed by ICAO hex.
+That database is published under the
+[Open Database License (ODbL) 1.0](https://opendatacommons.org/licenses/odbl/1-0/).
+The repository ships only the header row; run
 `scripts/update_plane_alert_db.sh` to download the current list.
 
 Probable-aircraft identity (registration, type, operator) comes from the
@@ -67,3 +70,15 @@ make test
 Configuration lives in `config/config.yaml` (copy from
 `config/config.yaml.example`) with secrets in a repository-root `.env` (copy
 from `config/.env.example`).
+
+## License
+
+skywatch's own source code is released under the [MIT License](LICENSE),
+© 2026 James Towns.
+
+Bundled third-party data keeps its original license. `content/airlines.dat`
+(OpenFlights) is redistributed here under the Open Database License (ODbL) 1.0,
+as noted in [Data attribution](#data-attribution) above. Other external
+datasets — the OpenSky aircraft database and plane-alert-db — are downloaded at
+runtime by their fetch scripts rather than redistributed in this repository, and
+remain under their upstream licenses.
