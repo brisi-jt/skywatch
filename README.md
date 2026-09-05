@@ -58,6 +58,14 @@ and [adsb.fi](https://adsb.fi/) — with
 [The OpenSky Network](https://opensky-network.org/) as a last-resort fallback
 when all three are unavailable.
 
+## Documentation
+
+- [Architecture](docs/architecture.md) — how the system fits together, and why
+  each part is shaped the way it is.
+- [Data sources](docs/data-sources.md) — every external dataset and service,
+  with its licensing, limits, and fallback behaviour.
+- [Screenshots](docs/screenshots.md) — every dashboard view, in both themes.
+
 ## Quickstart
 
 Requires Python 3.12 managed by [uv](https://docs.astral.sh/uv/).
