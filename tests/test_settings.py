@@ -13,9 +13,11 @@ def test_example_config_loads_with_documented_values(monkeypatch):
     assert settings.data_root == Path("data")
 
     assert settings.receiver.postcode == "SW1A 1AA"
-    # Postcode centroid for the example postcode from postcodes.io.
-    assert settings.receiver.lat == 51.5
-    assert settings.receiver.lon == -0.1
+    # The example ships no coordinates: an operator geocodes their own postcode
+    # during setup. Until they do, enrichment and the live map stay disabled
+    # rather than silently running against somewhere else entirely.
+    assert settings.receiver.lat is None
+    assert settings.receiver.lon is None
 
     assert settings.capture.source == "replay"
     assert settings.capture.mode == "multichannel"

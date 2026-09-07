@@ -5,11 +5,14 @@
 data_root: ./data
 
 receiver:
+  # Where the station physically is. Flight-data enrichment and the live map
+  # stay switched off until lat/lon are filled in, so set them before going
+  # live — otherwise clips are matched against nothing at all. Get the
+  # coordinates for your own postcode with:
+  #   uv run python scripts/geocode.py "<your postcode>"
   postcode: "SW1A 1AA"
-  # Postcode centroid from postcodes.io; regenerate for a new site with:
-  # uv run python scripts/geocode.py "<postcode>"
-  lat: 51.5
-  lon: -0.1
+  lat: null
+  lon: null
 
 capture:
   # replay feeds fixture audio through the pipeline (no dongle needed);
