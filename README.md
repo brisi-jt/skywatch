@@ -98,6 +98,8 @@ when all three are unavailable.
 
 ## Documentation
 
+- [Installation](docs/installation.md) — the full path from an empty machine
+  to a running station, hardware-optional.
 - [Architecture](docs/architecture.md) — how the system fits together, and why
   each part is shaped the way it is.
 - [Data sources](docs/data-sources.md) — every external dataset and service,
@@ -106,16 +108,15 @@ when all three are unavailable.
 
 ## Quickstart
 
-Requires Python 3.12 managed by [uv](https://docs.astral.sh/uv/).
+Requires Python 3.12 managed by [uv](https://docs.astral.sh/uv/). This is
+just a smoke test — for a real station, including configuration and running
+it with no radio hardware attached, see the
+[installation guide](docs/installation.md).
 
 ```sh
 uv sync --all-extras
 make test
 ```
-
-Configuration lives in `config/config.yaml` (copy from
-`config/config.yaml.example`) with secrets in a repository-root `.env` (copy
-from `config/.env.example`).
 
 ## License
 
