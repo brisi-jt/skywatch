@@ -128,3 +128,9 @@ as noted in [Data attribution](#data-attribution) above. Other external
 datasets — the OpenSky aircraft database and plane-alert-db — are downloaded at
 runtime by their fetch scripts rather than redistributed in this repository, and
 remain under their upstream licenses.
+
+## Support
+
+skywatch is a personal project shared for anyone who wants to build their own
+station. If it was useful to you, you can
+[buy me a coffee](https://buymeacoffee.com/brisi).
