@@ -2,9 +2,9 @@
 
 This is the owner's manual for your aviation listening station. The station
 is a small laptop with a radio receiver plugged into it. All day, every day,
-it listens to the aircraft frequencies around Stansted, records every radio
-call it hears, types out what was said, and picks out anything unusual so
-you can listen to the good bits later.
+it listens to the aircraft frequencies you have tuned it to, records every
+radio call it hears, types out what was said, and picks out anything unusual
+so you can listen to the good bits later.
 
 You don't need to understand radio, computers, or aviation to run it. This
 guide covers the handful of things you might ever need to do, and what to

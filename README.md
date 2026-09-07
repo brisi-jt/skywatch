@@ -11,6 +11,44 @@ Everything runs on modest hardware: the reference deployment is a 2015
 dual-core MacBook Pro. Development needs no radio hardware at all — a replay
 capture source feeds fixture audio through the identical pipeline.
 
+![The skywatch dashboard, Today view](docs/screenshots/today-dark.png)
+
+## What it does
+
+- **Captures** squelch-split VHF airband voice clips from one RTL-SDR, either
+  demodulating a whole tuner window at once or scanning a wider frequency list.
+- **Transcribes** locally with faster-whisper (whisper.cpp as a fallback),
+  biasing the recogniser toward the callsigns of aircraft known to be overhead.
+- **Classifies** every clip through deterministic prefilters — distress
+  phrasing, the emergency guard frequency, unusually long transmissions,
+  notable airframes — then a budgeted cloud-LLM chain that can only ever raise
+  a verdict, never quietly lower one.
+- **Identifies the aircraft** probably transmitting, with airline,
+  registration, type, operator, and badges for military or historic airframes.
+- **Maps what's overhead now** from keyless community ADS-B aggregators, linked
+  two ways with the clips the station actually heard.
+- **Makes it searchable**: full-text transcript search with a compact filter
+  grammar, starred clips, and multi-clip incidents played back in order.
+- **Tells you what happened** through a rolling narrative, a stats view, and an
+  optional weekly email digest.
+- **Tunes itself** from a bench with live signal meters and an off-air spectrum
+  scope, so gain and squelch can be set without editing config by hand.
+
+Everything is built to run continuously on a 2015 dual-core laptop, and the
+whole pipeline runs with no radio hardware attached for development.
+
+## Screenshots
+
+Every view, in both themes, is in the [screenshot gallery](docs/screenshots.md).
+
+The Sky view — live aircraft in range, fused with what the station has heard:
+
+![The Sky view](docs/screenshots/sky-dark.png)
+
+The tuning bench, with live signal meters fed from the capture process:
+
+![The tuning bench](docs/screenshots/tuning-light.png)
+
 ## Legal (United Kingdom)
 
 This project is receive-only and intended for personal, private use. Under the

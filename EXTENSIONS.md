@@ -68,6 +68,27 @@ JSON event bus, so audio wants either a second binary WebSocket or
 MediaSource-friendly chunks over HTTP. Everything else (session lifecycle,
 timeouts, capture restart) is already built.
 
+## Setting the station location from the dashboard
+
+The station's coordinates are config-file-only: an operator geocodes their
+postcode with `scripts/geocode.py`, pastes `lat`/`lon` into
+`config/config.yaml`, and restarts. Until they do, flight-data enrichment
+and the live Sky map both stay switched off — the shipped example leaves
+the coordinates unset deliberately, so those features announce themselves
+as unconfigured rather than silently matching clips against the wrong part
+of the country. That is a safe default but a poor first run: the two
+features most worth seeing are the two that are dark until someone edits
+YAML by hand.
+
+Making location editable from the settings dialog would close that gap, and
+the station name already works this way. The open question is the source of
+truth. Station name lives in the settings table; receiver location lives in
+`config.yaml` behind a single settings module, and settings are read once at
+process start — so moving location into the database splits configuration
+across two stores and still needs the worker and API to notice a change
+(either a restart, as the frequency plan already does, or a reload path
+neither process has today). Worth resolving before adding a text box.
+
 ## Rejected approaches
 
 Ideas that were seriously considered and turned down, recorded here so the
